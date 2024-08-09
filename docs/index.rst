@@ -9,8 +9,10 @@ Contents:
 
 .. toctree::
    :maxdepth: 2
+   :caption: User documentation
 
    about-tahoe
+
    Installation/install-tahoe
    Installation/install-on-windows
    Installation/install-on-linux
@@ -44,6 +46,9 @@ Contents:
    cautions
    write_coordination
    backupdb
+
+.. toctree::
+   :caption: Developer documentation
 
    developer-guide
    ticket-triage
