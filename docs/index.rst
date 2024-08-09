@@ -17,7 +17,6 @@ Contents:
    running
    magic-wormhole-invites
    configuration
-   architecture
 
    frontends/CLI
    frontends/webapi
@@ -46,6 +45,8 @@ Contents:
 
 .. toctree::
    :caption: Developer documentation
+
+   architecture
 
    build/build-on-windows
    build/build-on-linux
