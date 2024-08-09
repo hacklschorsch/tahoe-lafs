@@ -15,64 +15,65 @@ Contents:
 
    Installation/install-tahoe
    running
-   magic-wormhole-invites
-   configuration
+   architecture
 
    frontends/CLI
    frontends/webapi
    frontends/FTP-and-SFTP
    frontends/download-status
+   helper
 
+   convergence-secret
+   magic-wormhole-invites
+   write_coordination
+   anonymity-configuration
+   key-value-store
+   backupdb
+
+   backdoors
    known_issues
-   contributing
-   CODE_OF_CONDUCT
-   release-checklist
-   gpg-setup
+
+   donations
+   accepting-donations
+   expenses
 
 .. toctree::
    :caption: Operators
 
+   configuration
    servers
    managed-grid
-   helper
-   convergence-secret
    garbage-collection
 
-   backdoors
-   donations
-   accepting-donations
-   expenses
-   cautions
-   write_coordination
-   backupdb
-
-.. toctree::
-   :caption: Developers
-
-   architecture
-
-   build/build-on-windows
-   build/build-on-linux
-   build/build-on-desert-island
-
-   developer-guide
-   ticket-triage
-
-   anonymity-configuration
-
-   nodekeys
+   filesystem-notes
    performance
    logging
    stats
 
+   historical/configuration
+
+.. toctree::
+   :caption: Developers
+
+   contributing
+   CODE_OF_CONDUCT
+   developer-guide
+   ticket-triage
+
+   build/build-on-windows
+   build/build-on-linux
+   build/build-on-desert-island
    debian
    build/build-pyOpenSSL
 
+   cautions
+   nodekeys
    specifications/index
    proposed/index
-   filesystem-notes
-   historical/configuration
-   key-value-store
+
+   release-checklist
+   gpg-setup
+
 
 Indices and tables
 ==================
