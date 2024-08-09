@@ -9,7 +9,7 @@ Contents:
 
 .. toctree::
    :maxdepth: 2
-   :caption: User documentation
+   :caption: Users
 
    about-tahoe
 
@@ -29,6 +29,9 @@ Contents:
    release-checklist
    gpg-setup
 
+.. toctree::
+   :caption: Operators
+
    servers
    managed-grid
    helper
@@ -44,7 +47,7 @@ Contents:
    backupdb
 
 .. toctree::
-   :caption: Developer documentation
+   :caption: Developers
 
    architecture
 
