@@ -14,9 +14,6 @@ Contents:
    about-tahoe
 
    Installation/install-tahoe
-   Installation/install-on-windows
-   Installation/install-on-linux
-   Installation/install-on-desert-island
    running
    magic-wormhole-invites
    configuration
@@ -49,6 +46,10 @@ Contents:
 
 .. toctree::
    :caption: Developer documentation
+
+   build/build-on-windows
+   build/build-on-linux
+   build/build-on-desert-island
 
    developer-guide
    ticket-triage
