@@ -2,18 +2,9 @@
 Ported to Python 3.
 """
 
-from __future__ import division
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import unicode_literals
-
-from future.utils import PY2
-if PY2:
-    from future.builtins import filter, map, zip, ascii, chr, hex, input, next, oct, open, pow, round, super, bytes, dict, list, object, range, str, max, min  # noqa: F401
-from past.builtins import long
-
 import itertools
 import hashlib
+import re
 from twisted.internet import defer
 from twisted.python.filepath import FilePath
 from twisted.web.resource import Resource
@@ -549,7 +540,7 @@ class DownloadStatusElement(Element):
             length = r_ev["length"]
             bytes_returned = r_ev["bytes_returned"]
             decrypt_time = ""
-            if bytes:
+            if bytes_returned:
                 decrypt_time = self._rate_and_time(bytes_returned, r_ev["decrypt_time"])
             speed, rtt = "",""
             if r_ev["finish_time"] is not None:
@@ -1400,7 +1391,7 @@ class StatusElement(Element):
         size = op.get_size()
         if size is None:
             size = "(unknown)"
-        elif isinstance(size, (int, long, float)):
+        elif isinstance(size, (int, float)):
             size = abbreviate_size(size)
 
         result["total_size"] = size
@@ -1551,6 +1542,37 @@ class Statistics(MultiFormatResource):
         req.setHeader("content-type", "text/plain")
         return json.dumps(stats, indent=1) + "\n"
 
+    @render_exception
+    def render_OPENMETRICS(self, req):
+        """
+        Render our stats in `OpenMetrics <https://openmetrics.io/>` format.
+        For example Prometheus and Victoriametrics can parse this.
+        Point the scraper to ``/statistics?t=openmetrics`` (instead of the
+        default ``/metrics``).
+        """
+        req.setHeader("content-type", "application/openmetrics-text; version=1.0.0; charset=utf-8")
+        stats = self._provider.get_stats()
+        ret = []
+
+        def mangle_name(name):
+            return re.sub(
+                u"_(\d\d)_(\d)_percentile",
+                u'{quantile="0.\g<1>\g<2>"}',
+                name.replace(u".", u"_")
+            )
+
+        def mangle_value(val):
+            return str(val) if val is not None else u"NaN"
+
+        for (k, v) in sorted(stats['counters'].items()):
+            ret.append(u"tahoe_counters_%s %s" % (mangle_name(k), mangle_value(v)))
+        for (k, v) in sorted(stats['stats'].items()):
+            ret.append(u"tahoe_stats_%s %s" % (mangle_name(k), mangle_value(v)))
+
+        ret.append(u"# EOF\n")
+
+        return u"\n".join(ret)
+
 class StatisticsElement(Element):
 
     loader = XMLFile(FilePath(__file__).sibling("statistics.xhtml"))
@@ -1584,30 +1606,30 @@ class StatisticsElement(Element):
     @renderer
     def uploads(self, req, tag):
         files = self._stats["counters"].get("uploader.files_uploaded", 0)
-        bytes = self._stats["counters"].get("uploader.bytes_uploaded", 0)
+        bytes_uploaded = self._stats["counters"].get("uploader.bytes_uploaded", 0)
         return tag(("%s files / %s bytes (%s)" %
-                    (files, bytes, abbreviate_size(bytes))))
+                    (files, bytes_uploaded, abbreviate_size(bytes_uploaded))))
 
     @renderer
     def downloads(self, req, tag):
         files = self._stats["counters"].get("downloader.files_downloaded", 0)
-        bytes = self._stats["counters"].get("downloader.bytes_downloaded", 0)
+        bytes_uploaded = self._stats["counters"].get("downloader.bytes_downloaded", 0)
         return tag("%s files / %s bytes (%s)" %
-                   (files, bytes, abbreviate_size(bytes)))
+                   (files, bytes_uploaded, abbreviate_size(bytes_uploaded)))
 
     @renderer
     def publishes(self, req, tag):
         files = self._stats["counters"].get("mutable.files_published", 0)
-        bytes = self._stats["counters"].get("mutable.bytes_published", 0)
-        return tag("%s files / %s bytes (%s)" % (files, bytes,
-                                                 abbreviate_size(bytes)))
+        bytes_uploaded = self._stats["counters"].get("mutable.bytes_published", 0)
+        return tag("%s files / %s bytes (%s)" % (files, bytes_uploaded,
+                                                 abbreviate_size(bytes_uploaded)))
 
     @renderer
     def retrieves(self, req, tag):
         files = self._stats["counters"].get("mutable.files_retrieved", 0)
-        bytes = self._stats["counters"].get("mutable.bytes_retrieved", 0)
-        return tag("%s files / %s bytes (%s)" % (files, bytes,
-                                                 abbreviate_size(bytes)))
+        bytes_uploaded = self._stats["counters"].get("mutable.bytes_retrieved", 0)
+        return tag("%s files / %s bytes (%s)" % (files, bytes_uploaded,
+                                                 abbreviate_size(bytes_uploaded)))
 
     @renderer
     def raw(self, req, tag):

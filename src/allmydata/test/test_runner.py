@@ -2,23 +2,20 @@
 Ported to Python 3
 """
 
-from __future__ import (
-    absolute_import,
-)
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
-from future.utils import PY2
-if PY2:
-    from future.builtins import filter, map, zip, ascii, chr, hex, input, next, oct, open, pow, round, super, bytes, dict, list, object, range, str, max, min  # noqa: F401
-
-from six import ensure_text
-
 import os.path, re, sys
 from os import linesep
 import locale
 
+from testtools.matchers import (
+    MatchesListwise,
+    MatchesAny,
+    Contains,
+    Equals,
+    Always,
+)
+from testtools.twistedsupport import (
+    succeeded,
+)
 from eliot import (
     log_call,
 )
@@ -27,18 +24,28 @@ from twisted.trial import unittest
 
 from twisted.internet import reactor
 from twisted.python import usage
+from twisted.python.runtime import platform
 from twisted.internet.defer import (
     inlineCallbacks,
     DeferredList,
 )
-from twisted.python.filepath import FilePath
-from twisted.python.runtime import (
-    platform,
+from twisted.internet.testing import (
+    MemoryReactorClock,
 )
+from twisted.python.filepath import FilePath
 from allmydata.util import fileutil, pollmixin
 from allmydata.util.encodingutil import unicode_to_argv
+from allmydata.util.pid import (
+    check_pid_process,
+    _pidfile_to_lockpath,
+    ProcessInTheWay,
+)
 from allmydata.test import common_util
 import allmydata
+from allmydata.scripts.tahoe_run import (
+    on_stdin_close,
+)
+
 from .common import (
     PIPE,
     Popen,
@@ -46,6 +53,7 @@ from .common import (
 from .common_util import (
     parse_cli,
     run_cli,
+    run_cli_unicode,
 )
 from .cli_node_api import (
     CLINodeAPI,
@@ -55,6 +63,9 @@ from .cli_node_api import (
 )
 from ..util.eliotutil import (
     inline_callbacks,
+)
+from .common import (
+    SyncTestCase,
 )
 
 def get_root_from_file(src):
@@ -74,6 +85,35 @@ srcfile = allmydata.__file__
 rootdir = get_root_from_file(srcfile)
 
 
+class ParseOrExitTests(SyncTestCase):
+    """
+    Tests for ``parse_or_exit``.
+    """
+    def test_nonascii_error_content(self):
+        """
+        ``parse_or_exit`` can report errors that include non-ascii content.
+        """
+        tricky = u"\u00F6"
+        self.assertThat(
+            run_cli_unicode(tricky, [], encoding="utf-8"),
+            succeeded(
+                MatchesListwise([
+                    # returncode
+                    Equals(1),
+                    # stdout
+                    MatchesAny(
+                        # Python 2
+                        Contains(u"Unknown command: \\xf6"),
+                        # Python 3
+                        Contains(u"Unknown command: \xf6"),
+                    ),
+                    # stderr,
+                    Always()
+                ]),
+            ),
+        )
+
+
 @log_call(action_type="run-bin-tahoe")
 def run_bintahoe(extra_argv, python_options=None):
     """
@@ -85,18 +125,14 @@ def run_bintahoe(extra_argv, python_options=None):
     :return: A three-tuple of stdout (unicode), stderr (unicode), and the
         child process "returncode" (int).
     """
-    executable = ensure_text(sys.executable)
-    argv = [executable]
+    argv = [sys.executable]
     if python_options is not None:
         argv.extend(python_options)
     argv.extend([u"-b", u"-m", u"allmydata.scripts.runner"])
     argv.extend(extra_argv)
     argv = list(unicode_to_argv(arg) for arg in argv)
     p = Popen(argv, stdout=PIPE, stderr=PIPE)
-    if PY2:
-        encoding = "utf-8"
-    else:
-        encoding = locale.getpreferredencoding(False)
+    encoding = locale.getpreferredencoding(False)
     out = p.stdout.read().decode(encoding)
     err = p.stderr.read().decode(encoding)
     returncode = p.wait()
@@ -110,8 +146,13 @@ class BinTahoe(common_util.SignalMixin, unittest.TestCase):
         """
         tricky = u"\u00F6"
         out, err, returncode = run_bintahoe([tricky])
+        expected = u"Unknown command: \xf6"
         self.assertEqual(returncode, 1)
-        self.assertIn(u"Unknown command: " + tricky, out)
+        self.assertIn(
+            expected,
+            out,
+            "expected {!r} not found in {!r}\nstderr: {!r}".format(expected, out, err),
+        )
 
     def test_with_python_options(self):
         """
@@ -122,10 +163,10 @@ class BinTahoe(common_util.SignalMixin, unittest.TestCase):
         # but on Windows we parse the whole command line string ourselves so
         # we have to have our own implementation of skipping these options.
 
-        # -t is a harmless option that warns about tabs so we can add it
+        # -B is a harmless option that prevents writing bytecode so we can add it
         # without impacting other behavior noticably.
-        out, err, returncode = run_bintahoe([u"--version"], python_options=[u"-t"])
-        self.assertEqual(returncode, 0)
+        out, err, returncode = run_bintahoe([u"--version"], python_options=[u"-B"])
+        self.assertEqual(returncode, 0, f"Out:\n{out}\nErr:\n{err}")
         self.assertTrue(out.startswith(allmydata.__appname__ + '/'))
 
     def test_help_eliot_destinations(self):
@@ -305,7 +346,12 @@ class RunNode(common_util.SignalMixin, unittest.TestCase, pollmixin.PollMixin):
             u"--hostname", u"127.0.0.1",
         ])
 
-        self.assertEqual(returncode, 0)
+        self.assertEqual(
+            returncode,
+            0,
+            "stdout: {!r}\n"
+            "stderr: {!r}\n",
+        )
 
         # This makes sure that node.url is written, which allows us to
         # detect when the introducer restarts in _node_has_restarted below.
@@ -332,9 +378,7 @@ class RunNode(common_util.SignalMixin, unittest.TestCase, pollmixin.PollMixin):
 
         tahoe.active()
 
-        # We don't keep track of PIDs in files on Windows.
-        if not platform.isWindows():
-            self.assertTrue(tahoe.twistd_pid_file.exists())
+        self.assertTrue(tahoe.twistd_pid_file.exists())
         self.assertTrue(tahoe.node_url_file.exists())
 
         # rm this so we can detect when the second incarnation is ready
@@ -407,9 +451,7 @@ class RunNode(common_util.SignalMixin, unittest.TestCase, pollmixin.PollMixin):
         # change on restart
         storage_furl = fileutil.read(tahoe.storage_furl_file.path)
 
-        # We don't keep track of PIDs in files on Windows.
-        if not platform.isWindows():
-            self.assertTrue(tahoe.twistd_pid_file.exists())
+        self.assertTrue(tahoe.twistd_pid_file.exists())
 
         # rm this so we can detect when the second incarnation is ready
         tahoe.node_url_file.remove()
@@ -427,21 +469,22 @@ class RunNode(common_util.SignalMixin, unittest.TestCase, pollmixin.PollMixin):
             fileutil.read(tahoe.storage_furl_file.path),
         )
 
-        if not platform.isWindows():
-            self.assertTrue(
-                tahoe.twistd_pid_file.exists(),
-                "PID file ({}) didn't exist when we expected it to.  "
-                "These exist: {}".format(
-                    tahoe.twistd_pid_file,
-                    tahoe.twistd_pid_file.parent().listdir(),
-                ),
-            )
+        self.assertTrue(
+            tahoe.twistd_pid_file.exists(),
+            "PID file ({}) didn't exist when we expected it to.  "
+            "These exist: {}".format(
+                tahoe.twistd_pid_file,
+                tahoe.twistd_pid_file.parent().listdir(),
+            ),
+        )
         yield tahoe.stop_and_wait()
 
+        # twistd.pid should be gone by now -- except on Windows, where
+        # killing a subprocess immediately exits with no chance for
+        # any shutdown code (that is, no Twisted shutdown hooks can
+        # run).
         if not platform.isWindows():
-            # twistd.pid should be gone by now.
             self.assertFalse(tahoe.twistd_pid_file.exists())
-
 
     def _remove(self, res, file):
         fileutil.remove(file)
@@ -524,8 +567,9 @@ class RunNode(common_util.SignalMixin, unittest.TestCase, pollmixin.PollMixin):
             ),
         )
 
+        # It should not be running (but windows shutdown can't run
+        # code so the PID file still exists there).
         if not platform.isWindows():
-            # It should not be running.
             self.assertFalse(tahoe.twistd_pid_file.exists())
 
         # Wait for the operation to *complete*.  If we got this far it's
@@ -535,3 +579,100 @@ class RunNode(common_util.SignalMixin, unittest.TestCase, pollmixin.PollMixin):
         # What's left is a perfect indicator that the process has exited and
         # we won't get blamed for leaving the reactor dirty.
         yield client_running
+
+
+def _simulate_windows_stdin_close(stdio):
+    """
+    on Unix we can just close all the readers, correctly "simulating"
+    a stdin close .. of course, Windows has to be difficult
+    """
+    stdio.writeConnectionLost()
+    stdio.readConnectionLost()
+
+
+class OnStdinCloseTests(SyncTestCase):
+    """
+    Tests for on_stdin_close
+    """
+
+    def test_close_called(self):
+        """
+        our on-close method is called when stdin closes
+        """
+        reactor = MemoryReactorClock()
+        called = []
+
+        def onclose():
+            called.append(True)
+        transport = on_stdin_close(reactor, onclose)
+        self.assertEqual(called, [])
+
+        if platform.isWindows():
+            _simulate_windows_stdin_close(transport)
+        else:
+            for reader in reactor.getReaders():
+                reader.loseConnection()
+            reactor.advance(1)  # ProcessReader does a callLater(0, ..)
+
+        self.assertEqual(called, [True])
+
+    def test_exception_ignored(self):
+        """
+        An exception from our on-close function is discarded.
+        """
+        reactor = MemoryReactorClock()
+        called = []
+
+        def onclose():
+            called.append(True)
+            raise RuntimeError("unexpected error")
+        transport = on_stdin_close(reactor, onclose)
+        self.assertEqual(called, [])
+
+        if platform.isWindows():
+            _simulate_windows_stdin_close(transport)
+        else:
+            for reader in reactor.getReaders():
+                reader.loseConnection()
+            reactor.advance(1)  # ProcessReader does a callLater(0, ..)
+
+        self.assertEqual(called, [True])
+
+
+class PidFileLocking(SyncTestCase):
+    """
+    Direct tests for allmydata.util.pid functions
+    """
+
+    def test_locking(self):
+        """
+        Fail to create a pidfile if another process has the lock already.
+        """
+        # this can't just be "our" process because the locking library
+        # allows the same process to acquire a lock multiple times.
+        pidfile = FilePath(self.mktemp())
+        lockfile = _pidfile_to_lockpath(pidfile)
+
+        with open("other_lock.py", "w") as f:
+            f.write(
+                "\n".join([
+                    "import filelock, time, sys",
+                    "with filelock.FileLock(sys.argv[1], timeout=1):",
+                    "    sys.stdout.write('.\\n')",
+                    "    sys.stdout.flush()",
+                    "    time.sleep(10)",
+                ])
+            )
+        proc = Popen(
+            [sys.executable, "other_lock.py", lockfile.path],
+            stdout=PIPE,
+            stderr=PIPE,
+        )
+        # make sure our subprocess has had time to acquire the lock
+        # for sure (from the "." it prints)
+        proc.stdout.read(2)
+
+        # acquiring the same lock should fail; it is locked by the subprocess
+        with self.assertRaises(ProcessInTheWay):
+            check_pid_process(pidfile)
+        proc.terminate()

@@ -14,5 +14,7 @@ the data formats used by Tahoe.
    URI-extension
    mutable
    dirnodes
+   lease
    servers-of-happiness
    backends/raic
+   http-storage-node-protocol

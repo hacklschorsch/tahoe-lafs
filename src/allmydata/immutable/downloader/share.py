@@ -1,14 +1,6 @@
 """
 Ported to Python 3.
 """
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
-from future.utils import PY2
-if PY2:
-    from future.builtins import filter, map, zip, ascii, chr, hex, input, next, oct, open, pow, round, super, bytes, dict, list, object, range, str, max, min  # noqa: F401
 
 import struct
 import time
@@ -475,7 +467,9 @@ class Share(object):
         # there was corruption somewhere in the given range
         reason = "corruption in share[%d-%d): %s" % (start, start+offset,
                                                      str(f.value))
-        self._rref.callRemoteOnly("advise_corrupt_share", reason.encode("utf-8"))
+        return self._rref.callRemote(
+            "advise_corrupt_share", reason.encode("utf-8")
+        ).addErrback(log.err, "Error from remote call to advise_corrupt_share")
 
     def _satisfy_block_hash_tree(self, needed_hashes):
         o_bh = self.actual_offsets["block_hashes"]

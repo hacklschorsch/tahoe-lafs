@@ -2,15 +2,7 @@
 
 Ported to Python 3.
 """
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
 
-from future.utils import PY2
-if PY2:
-    # Skip dict so it doesn't break things.
-    from future.builtins import filter, map, zip, ascii, chr, hex, input, next, oct, open, pow, round, super, bytes, list, object, range, str, max, min  # noqa: F401
 from past.builtins import unicode
 
 import time
@@ -678,8 +670,10 @@ class DirectoryNode(object):
         return d
 
     # XXX: Too many arguments? Worthwhile to break into mutable/immutable?
-    def create_subdirectory(self, namex, initial_children={}, overwrite=True,
+    def create_subdirectory(self, namex, initial_children=None, overwrite=True,
                             mutable=True, mutable_version=None, metadata=None):
+        if initial_children is None:
+            initial_children = {}
         name = normalize(namex)
         if self.is_readonly():
             return defer.fail(NotWriteableError())

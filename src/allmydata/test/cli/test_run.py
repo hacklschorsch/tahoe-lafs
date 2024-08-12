@@ -1,20 +1,16 @@
 """
 Tests for ``allmydata.scripts.tahoe_run``.
-
-Ported to Python 3.
 """
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
 
-from future.utils import PY2
-if PY2:
-    from future.builtins import filter, map, zip, ascii, chr, hex, input, next, oct, open, pow, round, super, bytes, dict, list, object, range, str, max, min  # noqa: F401
+from __future__ import annotations
 
-from six.moves import (
+import re
+from io import (
     StringIO,
 )
+
+from hypothesis.strategies import text
+from hypothesis import given, assume
 
 from testtools.matchers import (
     Contains,
@@ -27,12 +23,24 @@ from twisted.python.filepath import (
 from twisted.internet.testing import (
     MemoryReactor,
 )
+from twisted.python.failure import (
+    Failure,
+)
+from twisted.internet.error import (
+    ConnectionDone,
+)
 from twisted.internet.test.modulehelpers import (
     AlternateReactor,
 )
 
 from ...scripts.tahoe_run import (
     DaemonizeTheRealService,
+    RunOptions,
+    run,
+)
+from ...util.pid import (
+    check_pid_process,
+    InvalidPidFile,
 )
 
 from ...scripts.runner import (
@@ -135,3 +143,138 @@ class DaemonizeTheRealServiceTests(SyncTestCase):
             """,
             "Privacy requested",
         )
+
+
+class DaemonizeStopTests(SyncTestCase):
+    """
+    Tests relating to stopping the daemon
+    """
+    def setUp(self):
+        self.nodedir = FilePath(self.mktemp())
+        self.nodedir.makedirs()
+        config = ""
+        self.nodedir.child("tahoe.cfg").setContent(config.encode("ascii"))
+        self.nodedir.child("tahoe-client.tac").touch()
+
+        # arrange to know when reactor.stop() is called
+        self.reactor = MemoryReactor()
+        self.stop_calls = []
+
+        def record_stop():
+            self.stop_calls.append(object())
+        self.reactor.stop = record_stop
+
+        super().setUp()
+
+    def _make_daemon(self, extra_argv: list[str]) -> DaemonizeTheRealService:
+        """
+        Create the daemonization service.
+
+        :param extra_argv: Extra arguments to pass between ``run`` and the
+            node path.
+        """
+        options = parse_options(["run"] + extra_argv + [self.nodedir.path])
+        options.stdout = StringIO()
+        options.stderr = StringIO()
+        options.stdin = StringIO()
+        run_options = options.subOptions
+        return DaemonizeTheRealService(
+            "client",
+            self.nodedir.path,
+            run_options,
+        )
+
+    def _run_daemon(self) -> None:
+        """
+        Simulate starting up the reactor so the daemon plugin can do its
+        stuff.
+        """
+        # We happen to know that the service uses reactor.callWhenRunning
+        # to schedule all its work (though I couldn't tell you *why*).
+        # Make sure those scheduled calls happen.
+        waiting = self.reactor.whenRunningHooks[:]
+        del self.reactor.whenRunningHooks[:]
+        for f, a, k in waiting:
+            f(*a, **k)
+
+    def _close_stdin(self) -> None:
+        """
+        Simulate closing the daemon plugin's stdin.
+        """
+        # there should be a single reader: our StandardIO process
+        # reader for stdin. Simulate it closing.
+        for r in self.reactor.getReaders():
+            r.connectionLost(Failure(ConnectionDone()))
+
+    def test_stop_on_stdin_close(self):
+        """
+        We stop when stdin is closed.
+        """
+        with AlternateReactor(self.reactor):
+            service = self._make_daemon([])
+            service.startService()
+            self._run_daemon()
+            self._close_stdin()
+            self.assertEqual(len(self.stop_calls), 1)
+
+    def test_allow_stdin_close(self):
+        """
+        If --allow-stdin-close is specified then closing stdin doesn't
+        stop the process
+        """
+        with AlternateReactor(self.reactor):
+            service = self._make_daemon(["--allow-stdin-close"])
+            service.startService()
+            self._run_daemon()
+            self._close_stdin()
+            self.assertEqual(self.stop_calls, [])
+
+
+class RunTests(SyncTestCase):
+    """
+    Tests for ``run``.
+    """
+
+    def test_non_numeric_pid(self):
+        """
+        If the pidfile exists but does not contain a numeric value, a complaint to
+        this effect is written to stderr.
+        """
+        basedir = FilePath(self.mktemp()).asTextMode()
+        basedir.makedirs()
+        basedir.child(u"running.process").setContent(b"foo")
+        basedir.child(u"tahoe-client.tac").setContent(b"")
+
+        config = RunOptions()
+        config.stdout = StringIO()
+        config.stderr = StringIO()
+        config['basedir'] = basedir.path
+        config.twistd_args = []
+
+        reactor = MemoryReactor()
+
+        runs = []
+        result_code = run(reactor, config, runApp=runs.append)
+        self.assertThat(
+            config.stderr.getvalue(),
+            Contains("found invalid PID file in"),
+        )
+        # because the pidfile is invalid we shouldn't get to the
+        # .run() call itself.
+        self.assertThat(runs, Equals([]))
+        self.assertThat(result_code, Equals(1))
+
+    good_file_content_re = re.compile(r"\s*[0-9]*\s[0-9]*\s*", re.M)
+
+    @given(text())
+    def test_pidfile_contents(self, content):
+        """
+        invalid contents for a pidfile raise errors
+        """
+        assume(not self.good_file_content_re.match(content))
+        pidfile = FilePath("pidfile")
+        pidfile.setContent(content.encode("utf8"))
+
+        with self.assertRaises(InvalidPidFile):
+            with check_pid_process(pidfile):
+                pass

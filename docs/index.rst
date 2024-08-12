@@ -41,9 +41,11 @@ preserving your privacy and security.
    :caption: Tahoe-LAFS in Depth
 
    architecture
+
    helper
    convergence-secret
    garbage-collection
+   managed-grid
    filesystem-notes
    key-value-store
    frontends/webapi
@@ -71,6 +73,7 @@ preserving your privacy and security.
    developer-guide
    ticket-triage
    release-checklist
+   gpg-setup
 
 .. toctree::
    :maxdepth: 1
