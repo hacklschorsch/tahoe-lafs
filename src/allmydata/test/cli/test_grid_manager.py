@@ -23,6 +23,9 @@ import click.testing
 from ..common_util import (
     run_cli,
 )
+from ..common import (
+    superuser,
+)
 from twisted.internet.defer import (
     inlineCallbacks,
 )
@@ -33,7 +36,6 @@ from twisted.python.runtime import (
     platform,
 )
 from allmydata.util import jsonbytes as json
-
 
 class GridManagerCommandLine(TestCase):
     """
@@ -222,7 +224,8 @@ class GridManagerCommandLine(TestCase):
                 result.output,
             )
 
-    @skipIf(not platform.isLinux(), "I only know how permissions work on linux")
+    @skipIf(platform.isWindows(), "We don't know how to set permissions on Windows.")
+    @skipIf(superuser, "cannot test as superuser with all permissions")
     def test_sign_bad_perms(self):
         """
         Error reported if we can't create certificate file

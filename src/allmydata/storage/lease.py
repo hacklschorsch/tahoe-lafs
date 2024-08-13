@@ -2,15 +2,6 @@
 Ported to Python 3.
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
-from future.utils import PY2
-if PY2:
-    from future.builtins import filter, map, zip, ascii, chr, hex, input, next, oct, open, pow, round, super, bytes, dict, list, object, range, str, max, min  # noqa: F401
-
 import struct, time
 
 import attr
@@ -173,7 +164,9 @@ class LeaseInfo(object):
         """
         return attr.assoc(
             self,
-            _expiration_time=new_expire_time,
+            # MyPy is unhappy with this; long-term solution is likely switch to
+            # new @frozen attrs API, with type annotations.
+            _expiration_time=new_expire_time,  # type: ignore[call-arg]
         )
 
     def is_renew_secret(self, candidate_secret):

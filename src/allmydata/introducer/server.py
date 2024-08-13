@@ -4,7 +4,6 @@ Ported to Python 3.
 
 from __future__ import annotations
 
-from past.builtins import long
 from six import ensure_text
 
 import time, os.path, textwrap
@@ -68,10 +67,6 @@ def create_introducer(basedir=u"."):
         default_connection_handlers, foolscap_connection_handlers = create_connection_handlers(config, i2p_provider, tor_provider)
         tub_options = create_tub_options(config)
 
-        # we don't remember these because the Introducer doesn't make
-        # outbound connections.
-        i2p_provider = None
-        tor_provider = None
         main_tub = create_main_tub(
             config, tub_options, default_connection_handlers,
             foolscap_connection_handlers, i2p_provider, tor_provider,
@@ -83,6 +78,8 @@ def create_introducer(basedir=u"."):
             i2p_provider,
             tor_provider,
         )
+        i2p_provider.setServiceParent(node)
+        tor_provider.setServiceParent(node)
         return defer.succeed(node)
     except Exception:
         return Failure()
@@ -144,9 +141,12 @@ def stringify_remote_address(rref):
     return str(remote)
 
 
+# MyPy doesn't work well with remote interfaces...
 @implementer(RIIntroducerPublisherAndSubscriberService_v2)
-class IntroducerService(service.MultiService, Referenceable):
-    name = "introducer"
+class IntroducerService(service.MultiService, Referenceable):  # type: ignore[misc]
+    # The type in Twisted for services is wrong in 22.10...
+    # https://github.com/twisted/twisted/issues/10135
+    name = "introducer"  # type: ignore[assignment]
     # v1 is the original protocol, added in 1.0 (but only advertised starting
     # in 1.3), removed in 1.12. v2 is the new signed protocol, added in 1.10
     # TODO: reconcile bytes/str for keys
@@ -261,7 +261,7 @@ class IntroducerService(service.MultiService, Referenceable):
                 if "seqnum" in old_ann:
                     # must beat previous sequence number to replace
                     if ("seqnum" not in ann
-                        or not isinstance(ann["seqnum"], (int,long))):
+                        or not isinstance(ann["seqnum"], int)):
                         self.log("not replacing old ann, no valid seqnum",
                                  level=log.NOISY, umid="ySbaVw")
                         self._debug_counts["inbound_no_seqnum"] += 1

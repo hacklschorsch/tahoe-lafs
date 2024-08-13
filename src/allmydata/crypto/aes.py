@@ -9,16 +9,6 @@ objects that `cryptography` documents.
 
 Ported to Python 3.
 """
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
-from future.utils import PY2
-if PY2:
-    from builtins import filter, map, zip, ascii, chr, hex, input, next, oct, open, pow, round, super, bytes, dict, list, object, range, str, max, min  # noqa: F401
-
-import six
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.ciphers import (
@@ -87,8 +77,8 @@ def encrypt_data(encryptor, plaintext):
     """
 
     _validate_cryptor(encryptor, encrypt=True)
-    if not isinstance(plaintext, six.binary_type):
-        raise ValueError('Plaintext must be bytes')
+    if not isinstance(plaintext, (bytes, memoryview)):
+        raise ValueError(f'Plaintext must be bytes or memoryview: {type(plaintext)}')
 
     return encryptor.update(plaintext)
 
@@ -126,8 +116,8 @@ def decrypt_data(decryptor, plaintext):
     """
 
     _validate_cryptor(decryptor, encrypt=False)
-    if not isinstance(plaintext, six.binary_type):
-        raise ValueError('Plaintext must be bytes')
+    if not isinstance(plaintext, (bytes, memoryview)):
+        raise ValueError(f'Plaintext must be bytes or memoryview: {type(plaintext)}')
 
     return decryptor.update(plaintext)
 
@@ -168,7 +158,7 @@ def _validate_key(key):
     """
     confirm `key` is suitable for AES encryption, or raise ValueError
     """
-    if not isinstance(key, six.binary_type):
+    if not isinstance(key, bytes):
         raise TypeError('Key must be bytes')
     if len(key) not in (16, 32):
         raise ValueError('Key must be 16 or 32 bytes long')
@@ -183,7 +173,7 @@ def _validate_iv(iv):
     """
     if iv is None:
         return DEFAULT_IV
-    if not isinstance(iv, six.binary_type):
+    if not isinstance(iv, bytes):
         raise TypeError('IV must be bytes')
     if len(iv) != 16:
         raise ValueError('IV must be 16 bytes long')

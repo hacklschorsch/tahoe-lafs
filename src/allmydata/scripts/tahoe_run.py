@@ -1,14 +1,6 @@
 """
 Ported to Python 3.
 """
-from __future__ import unicode_literals
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
-from future.utils import PY2
-if PY2:
-    from future.builtins import filter, map, zip, ascii, chr, hex, input, next, oct, open, pow, round, super, bytes, dict, list, object, range, str, max, min  # noqa: F401
 
 __all__ = [
     "RunOptions",
@@ -41,6 +33,9 @@ from allmydata.util.pid import (
 )
 from allmydata.storage.crawler import (
     MigratePickleFileError,
+)
+from allmydata.storage_client import (
+    MissingPlugin,
 )
 from allmydata.node import (
     PortAssignmentRequired,
@@ -104,6 +99,11 @@ class RunOptions(BasedirOptions):
          " [default: %s]" % quote_local_unicode_path(_default_nodedir)),
         ]
 
+    optFlags = [
+        ("allow-stdin-close", None,
+         'Do not exit when stdin closes ("tahoe run" otherwise will exit).'),
+    ]
+
     def parseArgs(self, basedir=None, *twistd_args):
         # This can't handle e.g. 'tahoe run --reactor=foo', since
         # '--reactor=foo' looks like an option to the tahoe subcommand, not to
@@ -156,6 +156,7 @@ class DaemonizeTheRealService(Service, HookMixin):
             "running": None,
         }
         self.stderr = options.parent.stderr
+        self._close_on_stdin_close = False if options["allow-stdin-close"] else True
 
     def startService(self):
 
@@ -191,6 +192,17 @@ class DaemonizeTheRealService(Service, HookMixin):
                             self.basedir,
                         )
                     )
+                elif reason.check(MissingPlugin):
+                    self.stderr.write(
+                        "Missing Plugin\n"
+                        "The configuration requests a plugin:\n"
+                        "\n    {}\n\n"
+                        "...which cannot be found.\n"
+                        "This typically means that some software hasn't been installed or the plugin couldn't be instantiated.\n\n"
+                        .format(
+                            reason.value.plugin_name,
+                        )
+                    )
                 else:
                     self.stderr.write("\nUnknown error, here's the traceback:\n")
                     reason.printTraceback(self.stderr)
@@ -199,10 +211,12 @@ class DaemonizeTheRealService(Service, HookMixin):
             d = service_factory()
 
             def created(srv):
-                srv.setServiceParent(self.parent)
+                if self.parent is not None:
+                    srv.setServiceParent(self.parent)
                 # exiting on stdin-closed facilitates cleanup when run
                 # as a subprocess
-                on_stdin_close(reactor, reactor.stop)
+                if self._close_on_stdin_close:
+                    on_stdin_close(reactor, reactor.stop)
             d.addCallback(created)
             d.addErrback(handle_config_error)
             d.addBoth(self._call_hook, 'running')
@@ -213,11 +227,13 @@ class DaemonizeTheRealService(Service, HookMixin):
 
 class DaemonizeTahoeNodePlugin(object):
     tapname = "tahoenode"
-    def __init__(self, nodetype, basedir):
+    def __init__(self, nodetype, basedir, allow_stdin_close):
         self.nodetype = nodetype
         self.basedir = basedir
+        self.allow_stdin_close = allow_stdin_close
 
     def makeService(self, so):
+        so["allow-stdin-close"] = self.allow_stdin_close
         return DaemonizeTheRealService(self.nodetype, self.basedir, so)
 
 
@@ -304,7 +320,9 @@ def run(reactor, config, runApp=twistd.runApp):
         print(config, file=err)
         print("tahoe %s: usage error from twistd: %s\n" % (config.subcommand_name, ue), file=err)
         return 1
-    twistd_config.loadedPlugins = {"DaemonizeTahoeNode": DaemonizeTahoeNodePlugin(nodetype, basedir)}
+    twistd_config.loadedPlugins = {
+        "DaemonizeTahoeNode": DaemonizeTahoeNodePlugin(nodetype, basedir, config["allow-stdin-close"])
+    }
 
     # our own pid-style file contains PID and process creation time
     pidfile = FilePath(get_pidfile(config['basedir']))

@@ -32,9 +32,8 @@ VERSION_PY_FILENAME = 'src/allmydata/_version.py'
 version = read_version_py(VERSION_PY_FILENAME)
 
 install_requires = [
-    # we don't need much out of setuptools but the version checking stuff
-    # needs pkg_resources and PEP 440 version specifiers.
-    "setuptools >= 28.8.0",
+    # importlib.resources.files and friends are new in Python 3.9.
+    "importlib_resources; python_version < '3.9'",
 
     "zfec >= 1.1.0",
 
@@ -63,11 +62,10 @@ install_requires = [
     #   Twisted[conch] also depends on cryptography and Twisted[tls]
     #   transitively depends on cryptography.  So it's anyone's guess what
     #   version of cryptography will *really* be installed.
+    "cryptography >= 2.6",
 
-    # * cryptography 40 broke constants we need; should really be using them
-    # * via pyOpenSSL; will be fixed in
-    # * https://github.com/pyca/pyopenssl/issues/1201
-    "cryptography >= 2.6, < 40",
+    # * Used for custom HTTPS validation
+    "pyOpenSSL >= 23.2.0",
 
     # * The SFTP frontend depends on Twisted 11.0.0 to fix the SSH server
     #   rekeying bug <https://twistedmatrix.com/trac/ticket/4395>
@@ -114,15 +112,15 @@ install_requires = [
     "magic-wormhole >= 0.10.2",
 
     # We want a new enough version to support custom JSON encoders.
-    "eliot >= 1.13.0",
+    "eliot >= 1.14.0",
 
     "pyrsistent",
 
     # A great way to define types of values.
-    "attrs >= 18.2.0",
+    "attrs >= 20.1.0",
 
     # WebSocket library for twisted and asyncio
-    "autobahn",
+    "autobahn >= 22.4.3",
 
     # Support for Python 3 transition
     "future >= 0.18.2",
@@ -140,33 +138,29 @@ install_requires = [
     "collections-extended >= 2.0.2",
 
     # HTTP server and client
-    "klein",
+    # Latest version is necessary to work with latest werkzeug:
+    "klein >= 23.5.0",
     # 2.2.0 has a bug: https://github.com/pallets/werkzeug/issues/2465
     "werkzeug != 2.2.0",
     "treq",
-    "cbor2",
+    # 5.6.0 excluded because https://github.com/agronholm/cbor2/issues/208
+    "cbor2 != 5.6.0",
 
-    # 0.4 adds the ability to pass in mmap() values which greatly reduces the
-    # amount of copying involved.
-    "pycddl >= 0.4",
+    # 0.6 adds the ability to decode CBOR. 0.6.1 fixes PyPy.
+    "pycddl >= 0.6.1",
 
     # Command-line parsing
-    "click >= 7.0",
+    "click >= 8.1.1",
 
     # for pid-file support
     "psutil",
     "filelock",
 ]
 
-setup_requires = [
-    'setuptools >= 28.8.0',  # for PEP-440 style versions
-]
-
 tor_requires = [
-    # This is exactly what `foolscap[tor]` means but pip resolves the pair of
-    # dependencies "foolscap[i2p] foolscap[tor]" to "foolscap[i2p]" so we lose
-    # this if we don't declare it ourselves!
-    "txtorcon >= 0.17.0",
+    # 23.5 added support for custom TLS contexts in web_agent(), which is
+    # needed for the HTTP storage client to run over Tor.
+    "txtorcon >= 23.5.0",
 ]
 
 i2p_requires = [
@@ -386,8 +380,8 @@ setup(name="tahoe-lafs", # also set in __init__.py
       package_dir = {'':'src'},
       packages=find_packages('src') + ['allmydata.test.plugins'],
       classifiers=trove_classifiers,
-      # We support Python 3.8 or later, 3.12 is untested for now
-      python_requires=">=3.8, <3.12",
+      # We support Python 3.8 or later, 3.13 is untested for now
+      python_requires=">=3.8, <3.13",
       install_requires=install_requires,
       extras_require={
           # Duplicate the Twisted pywin32 dependency here.  See
@@ -398,16 +392,30 @@ setup(name="tahoe-lafs", # also set in __init__.py
               "dulwich",
               "gpg",
           ],
+
+          # Here are the dependencies required to set up a reproducible test
+          # environment.  This could be for CI or local development.  These
+          # are *not* library dependencies of the test suite itself.  They are
+          # the tools we use to run the test suite at all.
+          "testenv": [
+              # Pin all of these versions for the same reason you ever want to
+              # pin anything: to prevent new releases with regressions from
+              # introducing spurious failures into CI runs for whatever
+              # development work is happening at the time.  The versions
+              # selected here are just the current versions at the time.
+              # Bumping them to keep up with future releases is fine as long
+              # as those releases are known to actually work.
+              "pip==23.3.1",
+              "wheel==0.41.3",
+              "subunitreporter==23.8.0",
+              "python-subunit==1.4.2",
+              "junitxml==0.7",
+              "coverage==7.2.5",
+          ],
+
+          # Here are the library dependencies of the test suite.
           "test": [
-              "flake8",
-              # Pin a specific pyflakes so we don't have different folks
-              # disagreeing on what is or is not a lint issue.  We can bump
-              # this version from time to time, but we will do it
-              # intentionally.
-              "pyflakes == 3.0.1",
-              "coverage ~= 5.0",
               "mock",
-              "tox ~= 3.0",
               "pytest",
               "pytest-twisted",
               "hypothesis >= 3.6.1",
@@ -416,7 +424,6 @@ setup(name="tahoe-lafs", # also set in __init__.py
               "fixtures",
               "beautifulsoup4",
               "html5lib",
-              "junitxml",
               # Pin old version until
               # https://github.com/paramiko/paramiko/issues/1961 is fixed.
               "paramiko < 2.9",
@@ -435,7 +442,6 @@ setup(name="tahoe-lafs", # also set in __init__.py
                     "allmydata": ["ported-modules.txt"],
                     },
       include_package_data=True,
-      setup_requires=setup_requires,
       entry_points={
           'console_scripts': [
               'tahoe = allmydata.scripts.runner:run',

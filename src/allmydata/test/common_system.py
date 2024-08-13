@@ -685,9 +685,13 @@ class SystemTestMixin(pollmixin.PollMixin, testutil.StallMixin):
     REDUCE_HTTP_CLIENT_TIMEOUT : bool = True
 
     def setUp(self):
+        if os.getenv("TAHOE_DEBUG_BLOCKING") == "1":
+            from .blocking import catch_blocking_in_event_loop
+            catch_blocking_in_event_loop(self)
+
         self._http_client_pools = []
-        http_client.StorageClient.start_test_mode(self._got_new_http_connection_pool)
-        self.addCleanup(http_client.StorageClient.stop_test_mode)
+        http_client.StorageClientFactory.start_test_mode(self._got_new_http_connection_pool)
+        self.addCleanup(http_client.StorageClientFactory.stop_test_mode)
         self.port_assigner = SameProcessStreamEndpointAssigner()
         self.port_assigner.setUp()
         self.addCleanup(self.port_assigner.tearDown)
@@ -696,6 +700,8 @@ class SystemTestMixin(pollmixin.PollMixin, testutil.StallMixin):
         self.sparent.startService()
 
     def _got_new_http_connection_pool(self, pool):
+        # Make sure the pool closes cached connections quickly:
+        pool.cachedConnectionTimeout = 0.1
         # Register the pool for shutdown later:
         self._http_client_pools.append(pool)
         # Disable retries:
@@ -819,8 +825,8 @@ class SystemTestMixin(pollmixin.PollMixin, testutil.StallMixin):
             helper_furl = f.read()
 
         self.helper_furl = helper_furl
-        if self.numclients >= 4:
-            with open(os.path.join(basedirs[3], 'tahoe.cfg'), 'a+') as f:
+        if self.numclients >= 2:
+            with open(os.path.join(basedirs[1], 'tahoe.cfg'), 'a+') as f:
                 f.write(
                     "[client]\n"
                     "helper.furl = {}\n".format(helper_furl)
@@ -836,9 +842,9 @@ class SystemTestMixin(pollmixin.PollMixin, testutil.StallMixin):
         log.msg("CONNECTED")
         # now find out where the web port was
         self.webish_url = self.clients[0].getServiceNamed("webish").getURL()
-        if self.numclients >=4:
+        if self.numclients >=2:
             # and the helper-using webport
-            self.helper_webish_url = self.clients[3].getServiceNamed("webish").getURL()
+            self.helper_webish_url = self.clients[1].getServiceNamed("webish").getURL()
 
     def _generate_config(self, which, basedir, force_foolscap=False):
         config = {}
@@ -854,10 +860,10 @@ class SystemTestMixin(pollmixin.PollMixin, testutil.StallMixin):
             ("node", "tub.location"): allclients,
 
             # client 0 runs a webserver and a helper
-            # client 3 runs a webserver but no helper
-            ("node", "web.port"): {0, 3},
+            # client 1 runs a webserver but no helper
+            ("node", "web.port"): {0, 1},
             ("node", "timeout.keepalive"): {0},
-            ("node", "timeout.disconnect"): {3},
+            ("node", "timeout.disconnect"): {1},
 
             ("helper", "enabled"): {0},
         }

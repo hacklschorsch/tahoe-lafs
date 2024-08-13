@@ -12,7 +12,7 @@ import sys
 import time
 import json
 from os import mkdir, environ
-from os.path import exists, join
+from os.path import exists, join, basename
 from io import StringIO, BytesIO
 from subprocess import check_output
 
@@ -70,16 +70,40 @@ class _ProcessExitedProtocol(ProcessProtocol):
         self.done.callback(None)
 
 
+class ProcessFailed(Exception):
+    """
+    A subprocess has failed.
+
+    :ivar ProcessTerminated reason: the original reason from .processExited
+
+    :ivar StringIO output: all stdout and stderr collected to this point.
+    """
+
+    def __init__(self, reason, output):
+        self.reason = reason
+        self.output = output
+
+    def __str__(self):
+        return "<ProcessFailed: {}>:\n{}".format(self.reason, self.output)
+
+
 class _CollectOutputProtocol(ProcessProtocol):
     """
     Internal helper. Collects all output (stdout + stderr) into
     self.output, and callback's on done with all of it after the
     process exits (for any reason).
     """
-    def __init__(self, capture_stderr=True):
+
+    def __init__(self, capture_stderr=True, stdin=None):
         self.done = Deferred()
         self.output = BytesIO()
         self.capture_stderr = capture_stderr
+        self._stdin = stdin
+
+    def connectionMade(self):
+        if self._stdin is not None:
+            self.transport.write(self._stdin)
+            self.transport.closeStdin()
 
     def processEnded(self, reason):
         if not self.done.called:
@@ -87,13 +111,12 @@ class _CollectOutputProtocol(ProcessProtocol):
 
     def processExited(self, reason):
         if not isinstance(reason.value, ProcessDone):
-            self.done.errback(reason)
+            self.done.errback(ProcessFailed(reason, self.output.getvalue()))
 
     def outReceived(self, data):
         self.output.write(data)
 
     def errReceived(self, data):
-        print("ERR: {!r}".format(data))
         if self.capture_stderr:
             self.output.write(data)
 
@@ -129,8 +152,9 @@ class _MagicTextProtocol(ProcessProtocol):
     and then .callback()s on self.done and .errback's if the process exits
     """
 
-    def __init__(self, magic_text):
+    def __init__(self, magic_text: str, name: str) -> None:
         self.magic_seen = Deferred()
+        self.name = f"{name}: "
         self.exited = Deferred()
         self._magic_text = magic_text
         self._output = StringIO()
@@ -140,7 +164,8 @@ class _MagicTextProtocol(ProcessProtocol):
 
     def outReceived(self, data):
         data = str(data, sys.stdout.encoding)
-        sys.stdout.write(data)
+        for line in data.splitlines():
+            sys.stdout.write(self.name + line + "\n")
         self._output.write(data)
         if not self.magic_seen.called and self._magic_text in self._output.getvalue():
             print("Saw '{}' in the logs".format(self._magic_text))
@@ -148,41 +173,37 @@ class _MagicTextProtocol(ProcessProtocol):
 
     def errReceived(self, data):
         data = str(data, sys.stderr.encoding)
-        sys.stdout.write(data)
+        for line in data.splitlines():
+            sys.stdout.write(self.name + line + "\n")
 
 
-def _cleanup_process_async(transport: IProcessTransport, allow_missing: bool) -> None:
+def _cleanup_process_async(transport: IProcessTransport) -> None:
     """
     If the given process transport seems to still be associated with a
     running process, send a SIGTERM to that process.
 
     :param transport: The transport to use.
 
-    :param allow_missing: If ``True`` then it is not an error for the
-        transport to have no associated process.  Otherwise, an exception will
-        be raised in that case.
-
     :raise: ``ValueError`` if ``allow_missing`` is ``False`` and the transport
         has no process.
     """
     if transport.pid is None:
-        if allow_missing:
-            print("Process already cleaned up and that's okay.")
-            return
-        else:
-            raise ValueError("Process is not running")
+        # in cases of "restart", we will have registered a finalizer
+        # that will kill the process -- but already explicitly killed
+        # it (and then ran again) due to the "restart". So, if the
+        # process is already killed, our job is done.
+        print("Process already cleaned up and that's okay.")
+        return
     print("signaling {} with TERM".format(transport.pid))
     try:
         transport.signalProcess('TERM')
     except ProcessExitedAlready:
         # The transport object thought it still had a process but the real OS
         # process has already exited.  That's fine.  We accomplished what we
-        # wanted to.  We don't care about ``allow_missing`` here because
-        # there's no way we could have known the real OS process already
-        # exited.
+        # wanted to.
         pass
 
-def _cleanup_tahoe_process(tahoe_transport, exited, allow_missing=False):
+def _cleanup_tahoe_process(tahoe_transport, exited):
     """
     Terminate the given process with a kill signal (SIGTERM on POSIX,
     TerminateProcess on Windows).
@@ -193,10 +214,24 @@ def _cleanup_tahoe_process(tahoe_transport, exited, allow_missing=False):
     :return: After the process has exited.
     """
     from twisted.internet import reactor
-    _cleanup_process_async(tahoe_transport, allow_missing=allow_missing)
-    print("signaled, blocking on exit")
+    _cleanup_process_async(tahoe_transport)
+    print(f"signaled, blocking on exit {exited}")
     block_with_timeout(exited, reactor)
     print("exited, goodbye")
+
+
+def run_tahoe(reactor, request, *args, **kwargs):
+    """
+    Helper to run tahoe with optional coverage.
+
+    :returns: a Deferred that fires when the command is done (or a
+        ProcessFailed exception if it exits non-zero)
+    """
+    stdin = kwargs.get("stdin", None)
+    protocol = _CollectOutputProtocol(stdin=stdin)
+    process = _tahoe_runner_optional_coverage(protocol, reactor, request, args)
+    process.exited = protocol.done
+    return protocol.done
 
 
 def _tahoe_runner_optional_coverage(proto, reactor, request, other_args):
@@ -205,7 +240,7 @@ def _tahoe_runner_optional_coverage(proto, reactor, request, other_args):
     allmydata.scripts.runner` and `other_args`, optionally inserting a
     `--coverage` option if the `request` indicates we should.
     """
-    if request.config.getoption('coverage'):
+    if request.config.getoption('coverage', False):
         args = [sys.executable, '-b', '-m', 'coverage', 'run', '-m', 'allmydata.scripts.runner', '--coverage']
     else:
         args = [sys.executable, '-b', '-m', 'allmydata.scripts.runner']
@@ -242,16 +277,20 @@ class TahoeProcess(object):
         )
 
     def kill(self):
-        """Kill the process, block until it's done."""
+        """
+        Kill the process, block until it's done.
+        Does nothing if the process is already stopped (or never started).
+        """
         print(f"TahoeProcess.kill({self.transport.pid} / {self.node_dir})")
         _cleanup_tahoe_process(self.transport, self.transport.exited)
 
     def kill_async(self):
         """
         Kill the process, return a Deferred that fires when it's done.
+        Does nothing if the process is already stopped (or never started).
         """
         print(f"TahoeProcess.kill_async({self.transport.pid} / {self.node_dir})")
-        _cleanup_process_async(self.transport, allow_missing=False)
+        _cleanup_process_async(self.transport)
         return self.transport.exited
 
     def restart_async(self, reactor: IReactorProcess, request: Any) -> Deferred:
@@ -262,7 +301,7 @@ class TahoeProcess(object):
             handle requests.
         """
         d = self.kill_async()
-        d.addCallback(lambda ignored: _run_node(reactor, self.node_dir, request, None, finalize=False))
+        d.addCallback(lambda ignored: _run_node(reactor, self.node_dir, request, None))
         def got_new_process(proc):
             # Grab the new transport since the one we had before is no longer
             # valid after the stop/start cycle.
@@ -274,7 +313,7 @@ class TahoeProcess(object):
         return "<TahoeProcess in '{}'>".format(self._node_dir)
 
 
-def _run_node(reactor, node_dir, request, magic_text, finalize=True):
+def _run_node(reactor, node_dir, request, magic_text):
     """
     Run a tahoe process from its node_dir.
 
@@ -282,7 +321,7 @@ def _run_node(reactor, node_dir, request, magic_text, finalize=True):
     """
     if magic_text is None:
         magic_text = "client running"
-    protocol = _MagicTextProtocol(magic_text)
+    protocol = _MagicTextProtocol(magic_text, basename(node_dir))
 
     # "tahoe run" is consistent across Linux/macOS/Windows, unlike the old
     # "start" command.
@@ -303,12 +342,41 @@ def _run_node(reactor, node_dir, request, magic_text, finalize=True):
         node_dir,
     )
 
-    if finalize:
-        request.addfinalizer(tahoe_process.kill)
+    request.addfinalizer(tahoe_process.kill)
 
     d = protocol.magic_seen
     d.addCallback(lambda ignored: tahoe_process)
     return d
+
+
+def basic_node_configuration(request, flog_gatherer, node_dir: str):
+    """
+    Setup common configuration options for a node, given a ``pytest`` request
+    fixture.
+    """
+    config_path = join(node_dir, 'tahoe.cfg')
+    config = get_config(config_path)
+    set_config(
+        config,
+        u'node',
+        u'log_gatherer.furl',
+        flog_gatherer,
+    )
+    force_foolscap = request.config.getoption("force_foolscap")
+    assert force_foolscap in (True, False)
+    set_config(
+        config,
+        'storage',
+        'force_foolscap',
+        str(force_foolscap),
+    )
+    set_config(
+        config,
+        'client',
+        'force_foolscap',
+        str(force_foolscap),
+    )
+    write_config(FilePath(config_path), config)
 
 
 def _create_node(reactor, request, temp_dir, introducer_furl, flog_gatherer, name, web_port,
@@ -316,8 +384,7 @@ def _create_node(reactor, request, temp_dir, introducer_furl, flog_gatherer, nam
                  magic_text=None,
                  needed=2,
                  happy=3,
-                 total=4,
-                 finalize=True):
+                 total=4):
     """
     Helper to create a single node, run it and return the instance
     spawnProcess returned (ITransport)
@@ -328,7 +395,7 @@ def _create_node(reactor, request, temp_dir, introducer_furl, flog_gatherer, nam
     if exists(node_dir):
         created_d = succeed(None)
     else:
-        print("creating", node_dir)
+        print("creating: {}".format(node_dir))
         mkdir(node_dir)
         done_proto = _ProcessExitedProtocol()
         args = [
@@ -351,35 +418,13 @@ def _create_node(reactor, request, temp_dir, introducer_furl, flog_gatherer, nam
         created_d = done_proto.done
 
         def created(_):
-            config_path = join(node_dir, 'tahoe.cfg')
-            config = get_config(config_path)
-            set_config(
-                config,
-                u'node',
-                u'log_gatherer.furl',
-                flog_gatherer,
-            )
-            force_foolscap = request.config.getoption("force_foolscap")
-            assert force_foolscap in (True, False)
-            set_config(
-                config,
-                'storage',
-                'force_foolscap',
-                str(force_foolscap),
-            )
-            set_config(
-                config,
-                'client',
-                'force_foolscap',
-                str(force_foolscap),
-            )
-            write_config(FilePath(config_path), config)
+            basic_node_configuration(request, flog_gatherer.furl, node_dir)
         created_d.addCallback(created)
 
     d = Deferred()
     d.callback(None)
     d.addCallback(lambda _: created_d)
-    d.addCallback(lambda _: _run_node(reactor, node_dir, request, magic_text, finalize=finalize))
+    d.addCallback(lambda _: _run_node(reactor, node_dir, request, magic_text))
     return d
 
 
@@ -605,25 +650,35 @@ def await_client_ready(tahoe, timeout=10, liveness=60*2, minimum_number_of_serve
             print("waiting because '{}'".format(e))
             time.sleep(1)
             continue
+        servers = js['servers']
 
-        if len(js['servers']) < minimum_number_of_servers:
-            print("waiting because insufficient servers")
+        if len(servers) < minimum_number_of_servers:
+            print(f"waiting because {servers} is fewer than required ({minimum_number_of_servers})")
             time.sleep(1)
             continue
+
+        now = time.time()
         server_times = [
             server['last_received_data']
-            for server in js['servers']
+            for server
+            in servers
+            if server['last_received_data'] is not None
         ]
-        # if any times are null/None that server has never been
-        # contacted (so it's down still, probably)
-        if any(t is None for t in server_times):
-            print("waiting because at least one server not contacted")
-            time.sleep(1)
-            continue
+        print(
+            f"Now: {time.ctime(now)}\n"
+            f"Liveness required: {liveness}\n"
+            f"Server last-received-data: {[time.ctime(s) for s in server_times]}\n"
+            f"Server ages: {[now - s for s in server_times]}\n"
+        )
 
-        # check that all times are 'recent enough'
-        if any([time.time() - t > liveness for t in server_times]):
-            print("waiting because at least one server too old")
+        # check that all times are 'recent enough' (it's OK if _some_ servers
+        # are down, we just want to make sure a sufficient number are up)
+        alive = [t for t in server_times if now - t <= liveness]
+        if len(alive) < minimum_number_of_servers:
+            print(
+                f"waiting because we found {len(alive)} servers "
+                f"and want {minimum_number_of_servers}"
+            )
             time.sleep(1)
             continue
 
@@ -695,7 +750,6 @@ class SSK:
     def load(cls, params: dict) -> SSK:
         assert params.keys() == {"format", "mutable", "key"}
         return cls(params["format"], params["key"].encode("ascii"))
-
     def customize(self) -> SSK:
         """
         Return an SSK with a newly generated random RSA key.
@@ -734,7 +788,7 @@ def upload(alice: TahoeProcess, fmt: CHK | SSK, data: bytes) -> str:
         f.write(data)
         f.flush()
         with fmt.to_argv() as fmt_argv:
-            argv = [alice, "put"] + fmt_argv + [f.name]
+            argv = [alice.process, "put"] + fmt_argv + [f.name]
             return cli(*argv).decode("utf-8").strip()
 
 

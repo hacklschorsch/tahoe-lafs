@@ -4,7 +4,13 @@ Ported to Python 3.
 from __future__ import annotations
 
 from six import ensure_str
-
+import sys
+if sys.version_info[:2] >= (3, 9):
+    from importlib.resources import files as resource_files, as_file
+else:
+    from importlib_resources import files as resource_files, as_file
+from contextlib import ExitStack
+import weakref
 from typing import Optional, Union, TypeVar, overload
 from typing_extensions import Literal
 
@@ -29,6 +35,7 @@ from twisted.web import (
     http,
     resource,
     template,
+    static,
 )
 from twisted.web.iweb import (
     IRequest,
@@ -86,6 +93,7 @@ from allmydata.util.encodingutil import (
 )
 from allmydata.util import abbreviate
 from allmydata.crypto.rsa import PrivateKey, PublicKey, create_signing_keypair_from_string
+
 
 class WebError(Exception):
     def __init__(self, text, code=http.BAD_REQUEST):
@@ -723,16 +731,21 @@ def get_arg(req: IRequest, argname: str | bytes, default: Optional[T] = None, *,
 
     :return: Either bytes or tuple of bytes.
     """
+    # Need to import here to prevent circular import:
+    from ..webish import TahoeLAFSRequest
+
     if isinstance(argname, str):
         argname_bytes = argname.encode("utf-8")
     else:
         argname_bytes = argname
 
-    results = []
-    if argname_bytes in req.args:
+    results : list[bytes] = []
+    if req.args is not None and argname_bytes in req.args:
         results.extend(req.args[argname_bytes])
     argname_unicode = str(argname_bytes, "utf-8")
-    if req.fields and argname_unicode in req.fields:
+    if isinstance(req, TahoeLAFSRequest) and req.fields and argname_unicode in req.fields:
+        # In all but one or two unit tests, the request will be a
+        # TahoeLAFSRequest.
         value = req.fields[argname_unicode].value
         if isinstance(value, str):
             value = value.encode("utf-8")
@@ -846,3 +859,21 @@ def get_keypair(request: IRequest) -> tuple[PublicKey, PrivateKey] | None:
         return None
     privkey, pubkey = create_signing_keypair_from_string(urlsafe_b64decode(privkey_der))
     return pubkey, privkey
+
+
+def add_static_children(root: IResource):
+    """
+    Add static files from C{allmydata.web} to the given resource.
+
+    Package resources may be on the filesystem, or they may be in a zip
+    or something, so we need to do a bit more work to serve them as
+    static files.
+    """
+    temporary_file_manager = ExitStack()
+    static_dir = resource_files("allmydata.web") / "static"
+    for child in static_dir.iterdir():
+        child_path = child.name.encode("utf-8")
+        root.putChild(child_path, static.File(
+            str(temporary_file_manager.enter_context(as_file(child)))
+        ))
+    weakref.finalize(root, temporary_file_manager.close)

@@ -1,3 +1,7 @@
+let
+  pname = "tahoe-lafs";
+  version = "1.19.0.post1";
+in
 { lib
 , isPyPy
 , python

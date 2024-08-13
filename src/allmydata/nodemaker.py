@@ -135,8 +135,15 @@ class NodeMaker(object):
         d.addCallback(lambda res: n)
         return d
 
-    def create_new_mutable_directory(self, initial_children={}, version=None):
-        # initial_children must have metadata (i.e. {} instead of None)
+    def create_new_mutable_directory(
+        self,
+        initial_children=None,
+        version=None,
+        *,
+        keypair: tuple[PublicKey, PrivateKey] | None = None,
+    ):
+        if initial_children is None:
+            initial_children = {}
         for (name, (node, metadata)) in initial_children.items():
             precondition(isinstance(metadata, dict),
                          "create_new_mutable_directory requires metadata to be a dict, not None", metadata)
@@ -144,7 +151,8 @@ class NodeMaker(object):
         d = self.create_mutable_file(lambda n:
                                      MutableData(pack_children(initial_children,
                                                     n.get_writekey())),
-                                     version=version)
+                                     version=version,
+                                     keypair=keypair)
         d.addCallback(self._create_dirnode)
         return d
 

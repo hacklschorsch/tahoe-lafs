@@ -1,5 +1,5 @@
 """
-Ported to Python 3.
+Functionality related to operating a Tahoe-LAFS node (client _or_ server).
 """
 from __future__ import annotations
 
@@ -7,12 +7,12 @@ import os
 import stat
 import time
 import weakref
-from typing import Optional
+from typing import Optional, Iterable
 from base64 import urlsafe_b64encode
 from functools import partial
-# On Python 2 this will be the backported package:
 from configparser import NoSectionError
 
+from six import ensure_text
 from foolscap.furl import (
     decode_furl,
 )
@@ -32,6 +32,7 @@ import allmydata
 from allmydata import node
 from allmydata.crypto import rsa, ed25519
 from allmydata.crypto.util import remove_prefix
+from allmydata.dirnode import DirectoryNode
 from allmydata.storage.server import StorageServer, FoolscapStorageServer
 from allmydata import storage_client
 from allmydata.immutable.upload import Uploader
@@ -47,7 +48,9 @@ from allmydata.util.encodingutil import get_filesystem_encoding
 from allmydata.util.abbreviate import parse_abbreviated_size
 from allmydata.util.time_format import parse_duration, parse_date
 from allmydata.util.i2p_provider import create as create_i2p_provider
-from allmydata.util.tor_provider import create as create_tor_provider
+from allmydata.util.tor_provider import create as create_tor_provider, _Provider as TorProvider
+from allmydata.util.cputhreadpool import defer_to_thread
+from allmydata.util.deferredutil import async_to_deferred
 from allmydata.stats import StatsProvider
 from allmydata.history import History
 from allmydata.interfaces import (
@@ -171,12 +174,18 @@ class KeyGenerator(object):
     """I create RSA keys for mutable files. Each call to generate() returns a
     single keypair."""
 
-    def generate(self):
-        """I return a Deferred that fires with a (verifyingkey, signingkey)
-        pair. The returned key will be 2048 bit"""
+    @async_to_deferred
+    async def generate(self) -> tuple[rsa.PublicKey, rsa.PrivateKey]:
+        """
+        I return a Deferred that fires with a (verifyingkey, signingkey)
+        pair. The returned key will be 2048 bit.
+        """
         keysize = 2048
-        signer, verifier = rsa.create_signing_keypair(keysize)
-        return defer.succeed( (verifier, signer) )
+        private, public = await defer_to_thread(
+            rsa.create_signing_keypair, keysize
+        )
+        return public, private
+
 
 class Terminator(service.Service):
     def __init__(self):
@@ -189,7 +198,7 @@ class Terminator(service.Service):
         return service.Service.stopService(self)
 
 
-def read_config(basedir, portnumfile, generated_files=[]):
+def read_config(basedir, portnumfile, generated_files: Iterable=()):
     """
     Read and validate configuration for a client-style Node. See
     :method:`allmydata.node.read_config` for parameter meanings (the
@@ -268,7 +277,7 @@ def create_client_from_config(config, _client_factory=None, _introducer_factory=
     introducer_clients = create_introducer_clients(config, main_tub, _introducer_factory)
     storage_broker = create_storage_farm_broker(
         config, default_connection_handlers, foolscap_connection_handlers,
-        tub_options, introducer_clients
+        tub_options, introducer_clients, tor_provider
     )
 
     client = _client_factory(
@@ -464,7 +473,7 @@ def create_introducer_clients(config, main_tub, _introducer_factory=None):
     return introducer_clients
 
 
-def create_storage_farm_broker(config: _Config, default_connection_handlers, foolscap_connection_handlers, tub_options, introducer_clients):
+def create_storage_farm_broker(config: _Config, default_connection_handlers, foolscap_connection_handlers, tub_options, introducer_clients, tor_provider: Optional[TorProvider]):
     """
     Create a StorageFarmBroker object, for use by Uploader/Downloader
     (and everybody else who wants to use storage servers)
@@ -484,6 +493,11 @@ def create_storage_farm_broker(config: _Config, default_connection_handlers, foo
     storage_client_config = storage_client.StorageClientConfig.from_node_config(
         config,
     )
+    # ensure that we can at least load all plugins that the
+    # configuration mentions; doing this early (i.e. before creating
+    # storage-clients themselves) allows us to exit in case of a
+    # problem.
+    storage_client_config.get_configured_storage_plugins()
 
     def tub_creator(handler_overrides=None, **kwargs):
         return node.create_tub(
@@ -500,6 +514,8 @@ def create_storage_farm_broker(config: _Config, default_connection_handlers, foo
         tub_maker=tub_creator,
         node_config=config,
         storage_client_config=storage_client_config,
+        default_connection_handlers=default_connection_handlers,
+        tor_provider=tor_provider,
     )
     for ic in introducer_clients:
         sb.use_introducer(ic)
@@ -836,7 +852,11 @@ class _Client(node.Node, pollmixin.PollMixin):
             if hasattr(self.tub.negotiationClass, "add_storage_server"):
                 nurls = self.tub.negotiationClass.add_storage_server(ss, swissnum.encode("ascii"))
                 self.storage_nurls = nurls
-                announcement[storage_client.ANONYMOUS_STORAGE_NURLS] = [n.to_text() for n in nurls]
+                # There is code in e.g. storage_client.py that checks if an
+                # announcement has changed. Since NURL order isn't meaningful,
+                # we don't want a change in the order to count as a change, so we
+                # send the NURLs as a set. CBOR supports sets, as does Foolscap.
+                announcement[storage_client.ANONYMOUS_STORAGE_NURLS] = {n.to_text() for n in nurls}
             announcement["anonymous-storage-FURL"] = furl
 
         enabled_storage_servers = self._enable_storage_servers(
@@ -971,6 +991,9 @@ class _Client(node.Node, pollmixin.PollMixin):
             static_servers = servers_yaml.get("storage", {})
             log.msg("found %d static servers in private/servers.yaml" %
                     len(static_servers))
+            static_servers = {
+                ensure_text(key): value for (key, value) in static_servers.items()
+            }
             self.storage_broker.set_static_servers(static_servers)
         except EnvironmentError:
             pass
@@ -1028,14 +1051,14 @@ class _Client(node.Node, pollmixin.PollMixin):
     def init_web(self, webport):
         self.log("init_web(webport=%s)", args=(webport,))
 
-        from allmydata.webish import WebishServer
+        from allmydata.webish import WebishServer, anonymous_tempfile_factory
         nodeurl_path = self.config.get_config_path("node.url")
         staticdir_config = self.config.get_config("node", "web.static", "public_html")
         staticdir = self.config.get_config_path(staticdir_config)
         ws = WebishServer(
             self,
             webport,
-            self._get_tempdir(),
+            anonymous_tempfile_factory(self._get_tempdir()),
             nodeurl_path,
             staticdir,
         )
@@ -1103,8 +1126,44 @@ class _Client(node.Node, pollmixin.PollMixin):
         # may get an opaque node if there were any problems.
         return self.nodemaker.create_from_cap(write_uri, read_uri, deep_immutable=deep_immutable, name=name)
 
-    def create_dirnode(self, initial_children={}, version=None):
-        d = self.nodemaker.create_new_mutable_directory(initial_children, version=version)
+    def create_dirnode(
+        self,
+        initial_children: dict | None = None,
+        version: int | None = None,
+        *,
+        unique_keypair: tuple[rsa.PublicKey, rsa.PrivateKey] | None = None
+    ) -> DirectoryNode:
+        """
+        Create a new directory.
+
+        :param initial_children: If given, a structured dict representing the
+            initial content of the created directory. See
+            `docs/frontends/webapi.rst` for examples.
+
+        :param version: If given, an int representing the mutable file format
+            of the new object. Acceptable values are currently `SDMF_VERSION`
+            or `MDMF_VERSION` (corresponding to 0 or 1, respectively, as
+            defined in `allmydata.interfaces`). If no such value is provided,
+            the default mutable format will be used (currently SDMF).
+
+        :param unique_keypair: an optional tuple containing the RSA public
+            and private key to be used for the new directory. Typically, this
+            value is omitted (in which case a new random keypair will be
+            generated at creation time).
+
+            **Warning** This value independently determines the identity of
+            the mutable object to create.  There cannot be two different
+            mutable objects that share a keypair.  They will merge into one
+            object (with undefined contents).
+
+        :return: A Deferred which will fire with a representation of the new
+            directory after it has been created.
+        """
+        d = self.nodemaker.create_new_mutable_directory(
+            initial_children,
+            version=version,
+            keypair=unique_keypair,
+        )
         return d
 
     def create_immutable_dirnode(self, children, convergence=None):

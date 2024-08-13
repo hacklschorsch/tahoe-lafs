@@ -1,17 +1,7 @@
-"""
-Ported to Python 3.
-"""
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
-from future.utils import PY2
-if PY2:
-    from future.builtins import filter, map, zip, ascii, chr, hex, input, next, oct, open, pow, round, super, bytes, dict, list, object, range, str, max, min  # noqa: F401
+from __future__ import annotations
 
 import os
-import sys
+from unittest import skipIf
 from functools import (
     partial,
 )
@@ -42,6 +32,7 @@ from twisted.internet import defer
 from twisted.python.filepath import (
     FilePath,
 )
+from twisted.python.runtime import platform
 from testtools.matchers import (
     Equals,
     AfterPreprocessing,
@@ -86,6 +77,7 @@ from allmydata.scripts.common import (
 from foolscap.api import flushEventualQueue
 import allmydata.test.common_util as testutil
 from .common import (
+    superuser,
     EMPTY_CLIENT_CONFIG,
     SyncTestCase,
     AsyncBrokenTestCase,
@@ -156,12 +148,12 @@ class Basic(testutil.ReallyEqualMixin, unittest.TestCase):
                 yield client.create_client(basedir)
             self.assertIn("[client]helper.furl", str(ctx.exception))
 
+    # if somebody knows a clever way to do this (cause
+    # EnvironmentError when reading a file that really exists), on
+    # windows, please fix this
+    @skipIf(platform.isWindows(), "We don't know how to set permissions on Windows.")
+    @skipIf(superuser, "cannot test as superuser with all permissions")
     def test_unreadable_config(self):
-        if sys.platform == "win32":
-            # if somebody knows a clever way to do this (cause
-            # EnvironmentError when reading a file that really exists), on
-            # windows, please fix this
-            raise unittest.SkipTest("can't make unreadable files on windows")
         basedir = "test_client.Basic.test_unreadable_config"
         os.mkdir(basedir)
         fn = os.path.join(basedir, "tahoe.cfg")
@@ -858,6 +850,7 @@ class StorageClients(SyncTestCase):
             actionType=u"storage-client:broker:set-static-servers",
             succeeded=True,
         ),
+        encoder_=json.AnyBytesJSONEncoder
     )
     def test_static_servers(self, logger):
         """
@@ -892,6 +885,7 @@ class StorageClients(SyncTestCase):
             actionType=u"storage-client:broker:make-storage-server",
             succeeded=False,
         ),
+        encoder_=json.AnyBytesJSONEncoder
     )
     def test_invalid_static_server(self, logger):
         """
