@@ -2,4 +2,5 @@
 requires = ["setuptools", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
 [project]
+name = "tahoe-lafs"
 dynamic = ["version"]
