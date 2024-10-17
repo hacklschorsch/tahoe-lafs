@@ -1884,6 +1884,8 @@ class Connections(SystemTestMixin, unittest.TestCase):
 class HTTPSystemTest(SystemTest):
     """HTTP storage protocol variant of the system tests."""
 
+    # This fails with Python 3.9 on Windows Server 2022, but works with Python 3.11 on the same VM.
+    # Really?  Or is it just flakey?  Add (this) comment to trigger a re-run.
     FORCE_FOOLSCAP_FOR_STORAGE = False
 
 
