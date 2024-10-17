@@ -265,9 +265,8 @@ jobs:
             if ((Test-Path .\wheelhouse) -and (Test-Path .\wheelhouse\*)) {
               echo "Found populated wheelhouse, skipping wheel building."
             } else {
-              python -m pip install --upgrade pip
               python -m pip install wheel
-              python -m pip wheel -vv --debug --no-verify --wheel-dir $env:PIP_FIND_LINKS .[testenv] .[test]
+              python -m pip wheel --no-verify --wheel-dir $env:PIP_FIND_LINKS .[testenv] .[test]
             }
 
       - "save_cache":
