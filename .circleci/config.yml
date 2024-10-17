@@ -267,7 +267,7 @@ jobs:
             } else {
               python -m pip install --upgrade pip
               python -m pip install wheel
-              python -m pip wheel -vvv --wheel-dir $env:PIP_FIND_LINKS .[testenv] .[test]
+              python -m pip wheel -vv --debug --wheel-dir $env:PIP_FIND_LINKS .[testenv] .[test]
             }
 
       - "save_cache":
