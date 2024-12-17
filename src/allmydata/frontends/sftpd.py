@@ -2,7 +2,6 @@
 Ported to Python 3.
 """
 
-import six
 import heapq, traceback, stat, struct
 from stat import S_IFREG, S_IFDIR
 from time import time, strftime, localtime
@@ -53,7 +52,7 @@ def createSFTPError(errorCode, errorMessage):
     Twisted expects _native_ strings for the SFTPError message, but we often do
     Unicode by default even on Python 2.
     """
-    return SFTPError(errorCode, six.ensure_str(errorMessage))
+    return SFTPError(errorCode, str(errorMessage))
 
 
 def eventually_callback(d):
@@ -2028,5 +2027,5 @@ class SFTPServer(service.MultiService):
         f = SSHFactory()
         f.portal = p
 
-        s = strports.service(six.ensure_str(sftp_portstr), f)
+        s = strports.service(str(sftp_portstr), f)
         s.setServiceParent(self)

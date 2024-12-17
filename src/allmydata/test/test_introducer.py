@@ -2,7 +2,6 @@
 Ported to Python 3.
 """
 
-from six import ensure_binary, ensure_text
 
 import os, re, itertools
 from base64 import b32decode
@@ -609,7 +608,7 @@ class SystemTest(SystemTestMixin, AsyncTestCase):
             self.assertIn(NICKNAME % "0", text) # a v2 client
             self.assertIn(NICKNAME % "1", text) # another v2 client
             for i in range(NUM_STORAGE):
-                self.assertIn(ensure_text(printable_serverids[i]), text,
+                self.assertIn(str(printable_serverids[i]), text,
                                   (i,printable_serverids[i],text))
                 # make sure there isn't a double-base32ed string too
                 self.assertNotIn(idlib.nodeid_b2a(printable_serverids[i]), text,
@@ -823,7 +822,7 @@ class Announcements(AsyncTestCase):
         # check the cache for the announcement
         announcements = self._load_cache(cache_filepath)
         self.failUnlessEqual(len(announcements), 1)
-        self.failUnlessEqual(ensure_binary(announcements[0]['key_s']), public_key_str)
+        self.failUnlessEqual(bytes(announcements[0]['key_s']), public_key_str)
         ann = announcements[0]["ann"]
         self.failUnlessEqual(ann["anonymous-storage-FURL"], furl1)
         self.failUnlessEqual(ann["seqnum"], 1)
@@ -836,7 +835,7 @@ class Announcements(AsyncTestCase):
         yield flushEventualQueue()
         announcements = self._load_cache(cache_filepath)
         self.failUnlessEqual(len(announcements), 1)
-        self.failUnlessEqual(ensure_binary(announcements[0]['key_s']), public_key_str)
+        self.failUnlessEqual(bytes(announcements[0]['key_s']), public_key_str)
         ann = announcements[0]["ann"]
         self.failUnlessEqual(ann["anonymous-storage-FURL"], furl2)
         self.failUnlessEqual(ann["seqnum"], 2)
@@ -853,7 +852,7 @@ class Announcements(AsyncTestCase):
         announcements = self._load_cache(cache_filepath)
         self.failUnlessEqual(len(announcements), 2)
         self.failUnlessEqual(set([public_key_str, public_key_str2]),
-                             set([ensure_binary(a["key_s"]) for a in announcements]))
+                             set([bytes(a["key_s"]) for a in announcements]))
         self.failUnlessEqual(set([furl2, furl3]),
                              set([a["ann"]["anonymous-storage-FURL"]
                                   for a in announcements]))

@@ -6,7 +6,6 @@ Ported to Python 3.
 
 from __future__ import annotations
 from future.utils import bchr
-from six import ensure_str
 
 from io import (
     BytesIO,
@@ -1219,7 +1218,7 @@ class Server(AsyncTestCase):
         reports = os.listdir(reportdir)
         self.assertThat(reports, HasLength(1))
         report_si0 = reports[0]
-        self.assertThat(report_si0, Contains(ensure_str(si0_s)))
+        self.assertThat(report_si0, Contains(str(si0_s)))
         f = open(os.path.join(reportdir, report_si0), "rb")
         report = f.read()
         f.close()

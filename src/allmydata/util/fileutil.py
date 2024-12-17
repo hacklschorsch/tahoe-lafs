@@ -5,7 +5,6 @@ Futz with files like a pro.
 """
 
 import sys, os, stat, tempfile, time, binascii
-import six
 from collections import namedtuple
 from errno import ENOENT
 
@@ -552,12 +551,6 @@ class UnableToUnlinkReplacementError(Exception):
     pass
 
 
-def reraise(wrapper):
-    cls, exc, tb = sys.exc_info()
-    wrapper_exc = wrapper("%s: %s" % (cls.__name__, exc))
-    six.reraise(wrapper, wrapper_exc, tb)
-
-
 if sys.platform == "win32":
     # <https://msdn.microsoft.com/en-us/library/windows/desktop/aa365512%28v=vs.85%29.aspx>
     ReplaceFileW = WINFUNCTYPE(
@@ -591,7 +584,7 @@ if sys.platform == "win32":
             try:
                 move_into_place(replacement_path, replaced_path)
             except EnvironmentError:
-                reraise(ConflictError)
+                raise(ConflictError)
 else:
     def rename_no_overwrite(source_path, dest_path):
         # link will fail with EEXIST if there is already something at dest_path.
@@ -599,7 +592,7 @@ else:
         try:
             os.unlink(source_path)
         except EnvironmentError:
-            reraise(UnableToUnlinkReplacementError)
+            raise(UnableToUnlinkReplacementError)
 
     def replace_file(replaced_path, replacement_path):
         precondition_abspath(replaced_path)
@@ -614,7 +607,7 @@ else:
             if e.errno != ENOENT:
                 raise
         except EnvironmentError:
-            reraise(ConflictError)
+            raise(ConflictError)
 
 
 PathInfo = namedtuple('PathInfo', 'isdir isfile islink exists size mtime_ns ctime_ns')

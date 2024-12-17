@@ -1,6 +1,5 @@
 import os, sys
 from io import StringIO
-import six
 
 from twisted.python import usage
 from twisted.internet import defer, task, threads
@@ -150,9 +149,9 @@ def parse_or_exit(config, argv, stdout, stderr):
             c = c.subOptions
         print(str(c), file=stdout)
         exc_str = str(e)
-        exc_bytes = six.ensure_binary(exc_str, "utf-8")
-        msg_bytes = b"%s:  %s\n" % (six.ensure_binary(argv[0]), exc_bytes)
-        print(six.ensure_text(msg_bytes, "utf-8"), file=stdout)
+        exc_bytes = bytes(exc_str, "utf-8")
+        msg_bytes = b"%s:  %s\n" % (bytes(argv[0]), exc_bytes)
+        print(str(msg_bytes, "utf-8"), file=stdout)
         sys.exit(1)
     return config
 
@@ -261,7 +260,7 @@ def _setup_coverage(reactor, argv):
     """
     # can we put this _setup_coverage call after we hit
     # argument-parsing?
-    # ensure_str() only necessary on Python 2.
+    # str() only necessary on Python 2.
     if '--coverage' not in sys.argv:
         return
     argv.remove('--coverage')

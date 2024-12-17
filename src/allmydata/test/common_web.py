@@ -2,7 +2,6 @@
 Ported to Python 3.
 """
 
-from six import ensure_str
 
 __all__ = [
     "do_http",
@@ -46,7 +45,7 @@ class VerboseError(Error):
     """Include the HTTP body response too."""
 
     def __str__(self):
-        return Error.__str__(self) + " " + ensure_str(self.response)
+        return Error.__str__(self) + " " + str(self.response)
 
 
 @inlineCallbacks

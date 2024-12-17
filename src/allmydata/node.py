@@ -6,7 +6,6 @@ Ported to Python 3.
 """
 from __future__ import annotations
 
-from six import ensure_str, ensure_text
 
 import json
 import datetime
@@ -167,7 +166,7 @@ def create_node_dir(basedir, readme_text):
     privdir = os.path.join(basedir, "private")
     if not os.path.exists(privdir):
         fileutil.make_dirs(privdir, 0o700)
-        readme_text = ensure_text(readme_text)
+        readme_text = str(readme_text)
         with open(os.path.join(privdir, 'README'), 'w') as f:
             f.write(readme_text)
 
@@ -188,7 +187,7 @@ def read_config(basedir, portnumfile, generated_files: Iterable = (), _valid_con
 
     :returns: :class:`allmydata.node._Config` instance
     """
-    basedir = abspath_expanduser_unicode(ensure_text(basedir))
+    basedir = abspath_expanduser_unicode(str(basedir))
     if _valid_config is None:
         _valid_config = _common_valid_config()
 
@@ -271,8 +270,8 @@ def _error_about_old_config_files(basedir, generated_files):
         raise e
 
 
-def ensure_text_and_abspath_expanduser_unicode(basedir: Union[bytes, str]) -> str:
-    return abspath_expanduser_unicode(ensure_text(basedir))
+def str_and_abspath_expanduser_unicode(basedir: Union[bytes, str]) -> str:
+    return abspath_expanduser_unicode(str(basedir))
 
 
 @attr.s
@@ -302,7 +301,7 @@ class _Config(object):
     config = attr.ib(validator=attr.validators.instance_of(configparser.ConfigParser))
     portnum_fname = attr.ib()
     _basedir = attr.ib(
-        converter=ensure_text_and_abspath_expanduser_unicode,
+        converter=str_and_abspath_expanduser_unicode,
     )  # type: str
     config_path = attr.ib(
         validator=attr.validators.optional(
@@ -915,7 +914,7 @@ def tub_listen_on(i2p_provider, tor_provider, tub, tubport, location):
             port_or_endpoint = port
         # Foolscap requires native strings:
         if isinstance(port_or_endpoint, (bytes, str)):
-            port_or_endpoint = ensure_str(port_or_endpoint)
+            port_or_endpoint = str(port_or_endpoint)
         tub.listenOn(port_or_endpoint)
     # This last step makes the Tub is ready for tub.registerReference()
     tub.setLocation(location)

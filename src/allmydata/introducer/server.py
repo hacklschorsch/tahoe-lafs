@@ -4,7 +4,6 @@ Ported to Python 3.
 
 from __future__ import annotations
 
-from six import ensure_text
 
 import time, os.path, textwrap
 from typing import Any, Union
@@ -298,9 +297,9 @@ class IntroducerService(service.MultiService, Referenceable):  # type: ignore[mi
     def remote_subscribe_v2(self, subscriber, service_name, subscriber_info):
         self.log("introducer: subscription[%r] request at %r"
                  % (service_name, subscriber), umid="U3uzLg")
-        service_name = ensure_text(service_name)
+        service_name = str(service_name)
         subscriber_info = dictutil.UnicodeKeyDict({
-            ensure_text(k): v for (k, v) in subscriber_info.items()
+            str(k): v for (k, v) in subscriber_info.items()
         })
         return self.add_subscriber(subscriber, service_name, subscriber_info)
 

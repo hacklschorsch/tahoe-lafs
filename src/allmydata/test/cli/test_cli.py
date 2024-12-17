@@ -4,7 +4,6 @@ Ported to Python 3.
 
 from io import StringIO
 import re
-from six import ensure_text
 
 import os.path
 from urllib.parse import quote as url_quote
@@ -50,7 +49,7 @@ from allmydata.util.encodingutil import listdir_unicode, get_io_encoding
 
 class CLI(CLITestMixin, unittest.TestCase):
     def _dump_cap(self, *args):
-        args = [ensure_text(s) for s in args]
+        args = [str(s) for s in args]
         config = debug.DumpCapOptions()
         config.stdout,config.stderr = StringIO(), StringIO()
         config.parseOptions(args)

@@ -2,7 +2,6 @@
 Ported to Python 3.
 """
 
-from six import ensure_binary
 
 import os
 
@@ -48,7 +47,7 @@ class MultiIntroTests(unittest.TestCase):
                 u'intro2':{ 'furl': 'furl4' },
             },
         }
-        self.yaml_path.setContent(ensure_binary(yamlutil.safe_dump(connections)))
+        self.yaml_path.setContent(bytes(yamlutil.safe_dump(connections)))
         # get a client and count of introducer_clients
         myclient = yield create_client(self.basedir)
         ic_count = len(myclient.introducer_clients)
@@ -101,7 +100,7 @@ class MultiIntroTests(unittest.TestCase):
                 u'default': { 'furl': 'furl1' },
             },
         }
-        self.yaml_path.setContent(ensure_binary(yamlutil.safe_dump(connections)))
+        self.yaml_path.setContent(bytes(yamlutil.safe_dump(connections)))
         FilePath(self.basedir).child("tahoe.cfg").setContent(
             b"[client]\n"
             b"introducer.furl = furl1\n"
@@ -151,7 +150,7 @@ class NoDefault(unittest.TestCase):
         connections = {'introducers': {
             u'one': { 'furl': 'furl1' },
             }}
-        self.yaml_path.setContent(ensure_binary(yamlutil.safe_dump(connections)))
+        self.yaml_path.setContent(bytes(yamlutil.safe_dump(connections)))
         myclient = yield create_client(self.basedir)
         tahoe_cfg_furl = myclient.introducer_clients[0].introducer_furl
         self.assertEquals(tahoe_cfg_furl, b'furl1')
@@ -176,6 +175,6 @@ class NoDefault(unittest.TestCase):
     @defer.inlineCallbacks
     def test_introducerless(self):
         connections = {'introducers': {} }
-        self.yaml_path.setContent(ensure_binary(yamlutil.safe_dump(connections)))
+        self.yaml_path.setContent(bytes(yamlutil.safe_dump(connections)))
         myclient = yield create_client(self.basedir)
         self.assertEquals(len(myclient.introducer_clients), 0)

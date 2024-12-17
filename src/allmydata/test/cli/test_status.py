@@ -2,7 +2,6 @@
 Ported to Python 3.
 """
 
-from six import ensure_text
 
 import os
 import tempfile
@@ -139,11 +138,11 @@ class CommandStatus(unittest.TestCase):
 
     def test_no_operations(self):
         values = [
-            StringIO(ensure_text(json.dumps({
+            StringIO(str(json.dumps({
                 "active": [],
                 "recent": [],
             }))),
-            StringIO(ensure_text(json.dumps({
+            StringIO(str(json.dumps({
                 "counters": {
                     "bytes_downloaded": 0,
                 },

@@ -4,7 +4,6 @@ Ported to Python 3.
 
 from __future__ import annotations
 
-from six import ensure_str
 
 import os, time, weakref, itertools
 
@@ -76,7 +75,7 @@ _READONLY_PEERS = Field(
 
 def _serialize_existing_shares(existing_shares):
     return {
-        ensure_str(server): list(shares)
+        str(server): list(shares)
         for (server, shares)
         in existing_shares.items()
     }
@@ -89,7 +88,7 @@ _EXISTING_SHARES = Field(
 
 def _serialize_happiness_mappings(happiness_mappings):
     return {
-        str(sharenum): ensure_str(base32.b2a(serverid))
+        str(sharenum): str(base32.b2a(serverid))
         for (sharenum, serverid)
         in happiness_mappings.items()
     }
@@ -110,7 +109,7 @@ _UPLOAD_TRACKERS = Field(
     u"upload_trackers",
     lambda trackers: list(
         dict(
-            server=ensure_str(tracker.get_name()),
+            server=str(tracker.get_name()),
             shareids=sorted(tracker.buckets.keys()),
         )
         for tracker
@@ -321,7 +320,7 @@ class ServerTracker(object):
 
 
 def str_shareloc(shnum, bucketwriter):
-    return "%s: %s" % (shnum, ensure_str(bucketwriter.get_servername()),)
+    return "%s: %s" % (shnum, str(bucketwriter.get_servername()),)
 
 
 @implementer(IPeerSelector)
@@ -1858,7 +1857,7 @@ class Uploader(service.MultiService, log.PrefixingLogMixin):
     def startService(self):
         service.MultiService.startService(self)
         if self._helper_furl:
-            self.parent.tub.connectTo(ensure_str(self._helper_furl),
+            self.parent.tub.connectTo(str(self._helper_furl),
                                       self._got_helper)
 
     def _got_helper(self, helper):

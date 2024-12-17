@@ -4,7 +4,6 @@ Ported to Python 3.
 from __future__ import annotations
 
 from past.builtins import chr as byteschr
-from six import ensure_text
 
 import os, re, sys, time, json
 from typing import Optional
@@ -80,10 +79,10 @@ def run_cli(*args, **kwargs):
     Backwards compatible version so we don't have to change all the tests that
     expected this API.
     """
-    nodeargs = [ensure_text(a) for a in kwargs.pop("nodeargs", [])]
+    nodeargs = [str(a) for a in kwargs.pop("nodeargs", [])]
     kwargs["nodeargs"] = nodeargs
     return run_cli_unicode(
-        ensure_text(args[0]), [ensure_text(a) for a in args[1:]], **kwargs)
+        str(args[0]), [str(a) for a in args[1:]], **kwargs)
 
 
 def do_http(*args, **kwargs):
@@ -1314,7 +1313,7 @@ class SystemTest(SystemTestMixin, RunBinTahoeMixin, unittest.TestCase):
         # exercise some of the diagnostic tools in runner.py
 
         # find a share
-        for (dirpath, dirnames, filenames) in os.walk(ensure_text(self.basedir)):
+        for (dirpath, dirnames, filenames) in os.walk(str(self.basedir)):
             if "storage" not in dirpath:
                 continue
             if not filenames:

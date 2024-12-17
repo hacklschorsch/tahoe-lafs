@@ -8,7 +8,6 @@ Once Python 2 support is dropped, most of this module will obsolete, since
 Unicode is the default everywhere in Python 3.
 """
 
-from six import ensure_str
 
 import sys, os, re
 import unicodedata
@@ -113,7 +112,7 @@ def unicode_to_argv(s):
     warnings.warn("This is unnecessary.", DeprecationWarning)
     if sys.platform == "win32":
         return s
-    return ensure_str(s)
+    return str(s)
 
 
 # According to unicode_to_argv above, the expected type for

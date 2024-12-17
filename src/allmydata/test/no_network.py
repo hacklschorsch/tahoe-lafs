@@ -15,7 +15,6 @@ Tubs, so it is not useful for tests that involve a Helper.
 
 from __future__ import annotations
 
-from six import ensure_text
 
 from typing import Callable
 
@@ -637,7 +636,7 @@ class GridTestMixin(object):
             method="GET", clientnum=0, **kwargs):
         # if return_response=True, this fires with (data, statuscode,
         # respheaders) instead of just data.
-        url = self.client_baseurls[clientnum] + ensure_text(urlpath)
+        url = self.client_baseurls[clientnum] + str(urlpath)
 
         response = yield treq.request(method, url, persistent=False,
                                       allow_redirects=followRedirect,

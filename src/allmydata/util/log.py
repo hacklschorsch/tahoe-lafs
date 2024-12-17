@@ -4,7 +4,6 @@ Logging utilities.
 Ported to Python 3.
 """
 
-from six import ensure_str
 
 from pyutil import nummedobj
 
@@ -56,7 +55,7 @@ class LogMixin(object):
             pmsgid = self._parentmsgid
             if pmsgid is None:
                 pmsgid = self._grandparentmsgid
-        kwargs = {ensure_str(k): v for (k, v) in kwargs.items()}
+        kwargs = {str(k): v for (k, v) in kwargs.items()}
         msgid = log.msg(msg, facility=facility, parent=pmsgid, *args,
                         **bytes_to_unicode(True, kwargs))
         if self._parentmsgid is None:

@@ -2,7 +2,6 @@
 Ported to Python 3.
 """
 
-from six import ensure_str
 
 import time
 now = time.time
@@ -92,7 +91,7 @@ class ShareFinder(object):
 
     # internal methods
     def loop(self):
-        pending_s = ",".join([ensure_str(rt.server.get_name())
+        pending_s = ",".join([str(rt.server.get_name())
                               for rt in self.pending_requests]) # sort?
         self.log(format="ShareFinder loop: running=%(running)s"
                  " hungry=%(hungry)s, pending=%(pending)s",

@@ -2,7 +2,6 @@
 Ported to Python 3.
 """
 
-from six import ensure_text
 from foolscap import base32
 
 
@@ -12,7 +11,7 @@ def nodeid_b2a(nodeid):
 
     Returns a Unicode string.
     """
-    return ensure_text(base32.encode(nodeid))
+    return str(base32.encode(nodeid))
 
 def shortnodeid_b2a(nodeid):
     """

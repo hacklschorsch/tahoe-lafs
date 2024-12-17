@@ -23,7 +23,6 @@ __all__ = [
 import sys
 import os, random, struct
 from contextlib import contextmanager
-import six
 import tempfile
 from tempfile import mktemp
 from functools import partial
@@ -287,7 +286,7 @@ class UseNode(object):
     storage_plugin = attr.ib()
     basedir = attr.ib(validator=attr.validators.instance_of(FilePath))
     introducer_furl = attr.ib(validator=attr.validators.instance_of(str),
-                              converter=six.ensure_str)
+                              converter=str)
     node_config : dict[bytes,bytes] = attr.ib(default=attr.Factory(dict))
 
     config = attr.ib(default=None)

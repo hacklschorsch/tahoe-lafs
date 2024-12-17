@@ -2,7 +2,6 @@
 Ported to Python 3.
 """
 
-from six import ensure_text
 
 from urllib.parse import quote as url_quote
 import json
@@ -167,8 +166,8 @@ class DeepCheckOutput(LineOnlyReceiver, object):
 
             # LIT files and directories do not have a "summary" field.
             summary = cr.get("summary", "Healthy (LIT)")
-            # When Python 2 is dropped the ensure_text()/ensure_str() will be unnecessary.
-            print(ensure_text("%s: %s" % (quote_path(path), quote_output(summary, quotemarks=False)),
+            # When Python 2 is dropped the str()/str() will be unnecessary.
+            print(str("%s: %s" % (quote_path(path), quote_output(summary, quotemarks=False)),
                               encoding=get_io_encoding()), file=stdout)
 
         # always print out corrupt shares
@@ -250,7 +249,7 @@ class DeepCheckAndRepairOutput(LineOnlyReceiver, object):
                 summary = "healthy"
             else:
                 summary = "not healthy"
-            print(ensure_text("%s: %s" % (quote_path(path), summary),
+            print(str("%s: %s" % (quote_path(path), summary),
                               encoding=get_io_encoding()), file=stdout)
 
         # always print out corrupt shares

@@ -3,7 +3,6 @@ Ported to Python 3.
 """
 from __future__ import annotations
 
-from six import ensure_str
 from importlib.resources import files as resource_files
 from importlib.resources import as_file
 from contextlib import ExitStack
@@ -129,7 +128,7 @@ def parse_replace_arg(replace: bytes) -> Union[bool,_OnlyFiles]:
     try:
         return boolean_of_arg(replace)
     except WebError:
-        raise WebError("invalid replace= argument: %r" % (ensure_str(replace),), http.BAD_REQUEST)
+        raise WebError("invalid replace= argument: %r" % (str(replace),), http.BAD_REQUEST)
 
 
 def get_format(req, default="CHK"):

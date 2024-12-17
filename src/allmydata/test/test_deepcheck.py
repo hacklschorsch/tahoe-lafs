@@ -2,7 +2,6 @@
 Ported to Python 3.
 """
 
-from six import ensure_text
 
 import os, json
 from urllib.parse import quote as url_quote
@@ -152,7 +151,7 @@ class DeepCheckBase(GridTestMixin, ErrorMixin, StallMixin, ShouldFailMixin,
         return data
 
     def parse_streamed_json(self, s):
-        s = ensure_text(s)
+        s = str(s)
         for unit in s.split("\n"):
             if not unit:
                 # stream should end with a newline, so split returns ""

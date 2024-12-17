@@ -2,7 +2,6 @@
 Ported to Python 3.
 """
 
-from six import ensure_str
 
 from allmydata.uri import from_string
 from allmydata.util import base32, log, dictutil
@@ -196,7 +195,7 @@ class MutableChecker(object):
             serverid = server.get_serverid()
             locator = (server, self._storage_index, shnum)
             corrupt_share_locators.append(locator)
-            s = "%s-sh%d" % (ensure_str(server.get_name()), shnum)
+            s = "%s-sh%d" % (str(server.get_name()), shnum)
             if f.check(CorruptShareError):
                 ft = f.value.reason
             else:

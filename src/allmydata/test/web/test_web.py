@@ -3,7 +3,6 @@ Tests for a bunch of web-related APIs.
 """
 from __future__ import annotations
 
-from six import ensure_binary
 
 import os.path, re, time
 import treq
@@ -2687,8 +2686,8 @@ class Web(WebMixin, WebErrorMixin, testutil.StallMixin, testutil.ReallyEqualMixi
         def _check(child):
             self.failUnless(child.is_unknown() or child.is_readonly())
             self.failUnlessReallyEqual(child.get_write_uri(), None)
-            self.failUnlessReallyEqual(child.get_uri(), ensure_binary(expected_uri.strip()))
-            self.failUnlessReallyEqual(child.get_readonly_uri(), ensure_binary(expected_uri.strip()))
+            self.failUnlessReallyEqual(child.get_uri(), bytes(expected_uri.strip()))
+            self.failUnlessReallyEqual(child.get_readonly_uri(), bytes(expected_uri.strip()))
         d.addCallback(_check)
         return d
 
@@ -2697,8 +2696,8 @@ class Web(WebMixin, WebErrorMixin, testutil.StallMixin, testutil.ReallyEqualMixi
         d = node.get_child_at_path(name)
         def _check(child):
             self.failUnless(child.is_unknown() or not child.is_readonly())
-            self.failUnlessReallyEqual(child.get_uri(), ensure_binary(got_uri.strip()))
-            self.failUnlessReallyEqual(child.get_write_uri(), ensure_binary(got_uri.strip()))
+            self.failUnlessReallyEqual(child.get_uri(), bytes(got_uri.strip()))
+            self.failUnlessReallyEqual(child.get_write_uri(), bytes(got_uri.strip()))
             expected_ro_uri = self._make_readonly(got_uri)
             if expected_ro_uri:
                 self.failUnlessReallyEqual(child.get_readonly_uri(), expected_ro_uri.strip())

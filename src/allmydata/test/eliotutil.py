@@ -4,7 +4,6 @@ Tools aimed at the interaction between tests and Eliot.
 Ported to Python 3.
 """
 
-from six import ensure_text
 
 __all__ = [
     "RUN_TEST",
@@ -115,7 +114,7 @@ class EliotLoggedRunTest(object):
         # So, grab the test method.
         name = self.case._testMethodName
         original = getattr(self.case, name)
-        decorated = with_logging(ensure_text(self.case.id()), original)
+        decorated = with_logging(str(self.case.id()), original)
         patcher.addPatch(self.case, name, decorated)
         try:
             # Patch it in

@@ -1,4 +1,3 @@
-from six import ensure_text
 
 import os.path
 import json
@@ -215,7 +214,7 @@ class Check(GridTestMixin, CLITestMixin, unittest.TestCase):
             (rc, out, err) = args
             self.assertEqual(len(err), 0, err)
             self.failUnlessReallyEqual(rc, 0)
-            out = ensure_text(out)
+            out = str(out)
             lines = out.splitlines()
             self.failUnless("'<root>': Healthy" in lines, out)
             self.failUnless("'small': Healthy (LIT)" in lines, out)
@@ -269,7 +268,7 @@ class Check(GridTestMixin, CLITestMixin, unittest.TestCase):
             (rc, out, err) = args
             self.assertEqual(len(err), 0, err)
             self.failUnlessReallyEqual(rc, 0)
-            out = ensure_text(out)
+            out = str(out)
             lines = out.splitlines()
             self.failUnless("'<root>': Healthy" in lines, out)
             self.failUnless("'small': Healthy (LIT)" in lines, out)
@@ -287,7 +286,7 @@ class Check(GridTestMixin, CLITestMixin, unittest.TestCase):
             (rc, out, err) = args
             self.assertEqual(len(err), 0, err)
             self.failUnlessReallyEqual(rc, 0)
-            out = ensure_text(out)
+            out = str(out)
             lines = out.splitlines()
             self.failUnless("'<root>': Healthy" in lines, out)
             self.failUnless("'small': Healthy (LIT)" in lines, out)
@@ -321,7 +320,7 @@ class Check(GridTestMixin, CLITestMixin, unittest.TestCase):
             (rc, out, err) = args
             self.assertEqual(len(err), 0, err)
             self.failUnlessReallyEqual(rc, 0)
-            out = ensure_text(out)
+            out = str(out)
             lines = out.splitlines()
             self.failUnless("'<root>': healthy" in lines, out)
             self.failUnless("'small': healthy" in lines, out)
@@ -359,7 +358,7 @@ class Check(GridTestMixin, CLITestMixin, unittest.TestCase):
             self.failIfEqual(rc, 0)
             self.failUnlessIn("ERROR: UnrecoverableFileError", err)
             # the fatal directory should still show up, as the last line
-            self.failUnlessIn(" subdir\n", ensure_text(out))
+            self.failUnlessIn(" subdir\n", str(out))
         d.addCallback(_manifest_failed)
 
         d.addCallback(lambda ign: self.do_cli("deep-check", self.rooturi))

@@ -26,7 +26,6 @@ from logging import (
 )
 from json import loads
 
-from six import ensure_text
 from zope.interface import (
     implementer,
 )
@@ -229,7 +228,7 @@ def _stdlib_logging_to_eliot_configuration(stdlib_logger, eliot_logger=None):
 
 class _DestinationParser(object):
     def parse(self, description):
-        description = ensure_text(description)
+        description = str(description)
 
         try:
             kind, args = description.split(u":", 1)

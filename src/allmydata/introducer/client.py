@@ -2,7 +2,6 @@
 Ported to Python 3.
 """
 
-from six import ensure_text, ensure_str
 
 import time
 from zope.interface import implementer
@@ -87,7 +86,7 @@ class IntroducerClient(service.Service, Referenceable):
     def startService(self):
         service.Service.startService(self)
         self._introducer_error = None
-        rc = self._tub.connectTo(ensure_str(self.introducer_furl), self._got_introducer)
+        rc = self._tub.connectTo(str(self.introducer_furl), self._got_introducer)
         self._introducer_reconnector = rc
         def connect_failed(failure):
             self.log("Initial Introducer connection failed: perhaps it's down",
@@ -124,7 +123,7 @@ class IntroducerClient(service.Service, Referenceable):
             # changes, Python 3 for now ensures the same is true.
             server_params = {
                 "ann" : ann,
-                "key_s" : ensure_text(key_s),
+                "key_s" : str(key_s),
                 }
             announcements.append(server_params)
         announcement_cache_yaml = yamlutil.safe_dump(announcements)

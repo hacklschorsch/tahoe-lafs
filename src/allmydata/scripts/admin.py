@@ -2,7 +2,6 @@
 Ported to Python 3.
 """
 
-from six import ensure_binary
 
 from twisted.python import usage
 from twisted.python.filepath import (
@@ -64,7 +63,7 @@ def derive_pubkey(options):
     out = options.stdout
     from allmydata.crypto import ed25519
     privkey_vs = options.privkey
-    privkey_vs = ensure_binary(privkey_vs)
+    privkey_vs = bytes(privkey_vs)
     private_key, public_key = ed25519.signing_keypair_from_string(privkey_vs)
     print("private:", str(ed25519.string_from_signing_key(private_key), "ascii"), file=out)
     print("public:", str(ed25519.string_from_verifying_key(public_key), "ascii"), file=out)

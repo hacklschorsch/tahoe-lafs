@@ -2,13 +2,12 @@
 Ported to Python 3.
 """
 
-from six import ensure_str, ensure_text
 
 from ...scripts import runner
 from ..common_util import ReallyEqualMixin, run_cli, run_cli_unicode
 
 def parse_options(basedir, command, args):
-    args = [ensure_text(s) for s in args]
+    args = [str(s) for s in args]
     o = runner.Options()
     o.parseOptions(["--node-directory", basedir, command] + args)
     while hasattr(o, "subOptions"):
@@ -57,8 +56,8 @@ class CLITestMixin(ReallyEqualMixin):
         # Python functions want native strings.  So ignore the requirements
         # for passing arguments to another process and make sure this argument
         # is a native string.
-        verb = ensure_str(verb)
-        args = [ensure_str(arg) for arg in args]
-        client_dir = ensure_str(self.get_clientdir(i=client_num))
+        verb = str(verb)
+        args = [str(arg) for arg in args]
+        client_dir = str(self.get_clientdir(i=client_num))
         nodeargs = [ "--node-directory", client_dir ]
         return run_cli(verb, *args, nodeargs=nodeargs, **kwargs)

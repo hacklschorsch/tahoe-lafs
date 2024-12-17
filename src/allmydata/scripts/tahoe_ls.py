@@ -2,7 +2,6 @@
 Ported to Python 3.
 """
 
-from six import ensure_text
 
 import time
 from urllib.parse import quote as url_quote
@@ -151,9 +150,9 @@ def ls(options):
         line.append(name + classify)
 
         if options["uri"]:
-            line.append(ensure_text(uri))
+            line.append(str(uri))
         if options["readonly-uri"]:
-            line.append(quote_output(ensure_text(ro_uri) or "-", quotemarks=False))
+            line.append(quote_output(str(ro_uri) or "-", quotemarks=False))
 
         rows.append(line)
 
@@ -166,7 +165,7 @@ def ls(options):
             while len(left_justifys) <= i:
                 left_justifys.append(False)
             max_widths[i] = max(max_widths[i], len(cell))
-            if ensure_text(cell).startswith("URI"):
+            if str(cell).startswith("URI"):
                 left_justifys[i] = True
     if len(left_justifys) == 1:
         left_justifys[0] = True

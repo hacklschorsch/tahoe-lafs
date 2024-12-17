@@ -3,7 +3,6 @@ Ported to Python 3.
 """
 from __future__ import annotations
 
-from six import ensure_str
 
 import sys, time, copy
 from zope.interface import implementer
@@ -872,7 +871,7 @@ class ServermapUpdater(object):
         # versions.
         self.log(" found valid version %d-%s from %s-sh%d: %d-%d/%d/%d"
                  % (seqnum, str(base32.b2a(root_hash)[:4], "utf-8"),
-                    ensure_str(server.get_name()), shnum,
+                    str(server.get_name()), shnum,
                     k, n, segsize, datalen),
                     parent=lp)
         self._valid_versions.add(verinfo)

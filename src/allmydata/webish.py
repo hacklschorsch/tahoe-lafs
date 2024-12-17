@@ -3,7 +3,6 @@ General web server-related utilities.
 """
 from __future__ import annotations
 
-from six import ensure_str
 from typing import IO, Callable, Optional
 import re, time, tempfile
 from urllib.parse import parse_qsl, urlencode
@@ -112,7 +111,7 @@ class TahoeLAFSRequest(Request, object):
             # twisted.web.http.Request uses.
 
             headers = {
-                ensure_str(name.lower()): ensure_str(value[-1])
+                str(name.lower()): str(value[-1])
                 for (name, value)
                 in self.requestHeaders.getAllRawHeaders()
             }
@@ -289,7 +288,7 @@ class WebishServer(service.MultiService):
         if re.search(r'^\d', webport):
             webport = "tcp:"+webport # twisted warns about bare "0" or "3456"
         # strports must be native strings.
-        webport = ensure_str(webport)
+        webport = str(webport)
         s = strports.service(webport, self.site)
         s.setServiceParent(self)
 
