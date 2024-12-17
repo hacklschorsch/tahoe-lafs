@@ -33,7 +33,6 @@ buildPythonPackage rec {
     pycddl
     pyrsistent
     pyutil
-    six
     treq
     twisted
     werkzeug

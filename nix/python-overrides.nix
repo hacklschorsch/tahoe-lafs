@@ -74,11 +74,6 @@ in {
   # its test suite and arrow segfaults.
   treq = onPyPy dontCheck super.treq;
 
-  # the six test suite fails on PyPy because it depends on dbm which the
-  # nixpkgs PyPy build appears to be missing.  Maybe fixed in nixpkgs in
-  # a5f8184fb816a4fd5ae87136838c9981e0d22c67.
-  six = onPyPy dontCheck super.six;
-
   # Likewise for beautifulsoup4.
   beautifulsoup4 = onPyPy dontBuildDocs super.beautifulsoup4;
 
