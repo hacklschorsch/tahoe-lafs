@@ -5,7 +5,6 @@ functionality.
 Ported to Python 3.
 """
 
-
 import attr
 
 from zope.interface import (

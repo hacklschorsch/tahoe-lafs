@@ -2,7 +2,6 @@
 Ported to Python 3.
 """
 
-
 import os, time
 from allmydata.scripts.common import get_alias, DEFAULT_ALIAS, escape_path, \
                                      UnknownAliasError

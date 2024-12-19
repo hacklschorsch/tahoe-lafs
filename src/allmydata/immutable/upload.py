@@ -4,7 +4,6 @@ Ported to Python 3.
 
 from __future__ import annotations
 
-
 import os, time, weakref, itertools
 
 import attr

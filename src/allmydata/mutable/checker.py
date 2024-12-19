@@ -2,7 +2,6 @@
 Ported to Python 3.
 """
 
-
 from allmydata.uri import from_string
 from allmydata.util import base32, log, dictutil
 from allmydata.util.happinessutil import servers_of_happiness

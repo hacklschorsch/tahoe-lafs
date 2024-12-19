@@ -3,7 +3,6 @@ Tests for a bunch of web-related APIs.
 """
 from __future__ import annotations
 
-
 import os.path, re, time
 import treq
 from urllib.parse import quote as urlquote, unquote as urlunquote

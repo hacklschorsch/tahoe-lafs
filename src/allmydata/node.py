@@ -6,7 +6,6 @@ Ported to Python 3.
 """
 from __future__ import annotations
 
-
 import json
 import datetime
 import os.path

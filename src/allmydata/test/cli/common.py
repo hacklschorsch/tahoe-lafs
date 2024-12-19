@@ -2,7 +2,6 @@
 Ported to Python 3.
 """
 
-
 from ...scripts import runner
 from ..common_util import ReallyEqualMixin, run_cli, run_cli_unicode
 

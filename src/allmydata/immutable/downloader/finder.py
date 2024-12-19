@@ -2,7 +2,6 @@
 Ported to Python 3.
 """
 
-
 import time
 now = time.time
 from foolscap.api import eventually

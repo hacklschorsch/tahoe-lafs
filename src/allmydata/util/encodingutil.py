@@ -8,7 +8,6 @@ Once Python 2 support is dropped, most of this module will obsolete, since
 Unicode is the default everywhere in Python 3.
 """
 
-
 import sys, os, re
 import unicodedata
 import warnings

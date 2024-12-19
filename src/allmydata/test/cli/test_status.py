@@ -2,7 +2,6 @@
 Ported to Python 3.
 """
 
-
 import os
 import tempfile
 from io import BytesIO, StringIO

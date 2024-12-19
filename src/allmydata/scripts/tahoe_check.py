@@ -2,7 +2,6 @@
 Ported to Python 3.
 """
 
-
 from urllib.parse import quote as url_quote
 import json
 

@@ -4,7 +4,6 @@ Tools aimed at the interaction between tests and Eliot.
 Ported to Python 3.
 """
 
-
 __all__ = [
     "RUN_TEST",
     "EliotLoggedRunTest",

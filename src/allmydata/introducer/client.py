@@ -2,7 +2,6 @@
 Ported to Python 3.
 """
 
-
 import time
 from zope.interface import implementer
 from twisted.application import service

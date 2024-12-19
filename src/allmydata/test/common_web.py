@@ -2,7 +2,6 @@
 Ported to Python 3.
 """
 
-
 __all__ = [
     "do_http",
     "render",

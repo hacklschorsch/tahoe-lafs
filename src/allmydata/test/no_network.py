@@ -15,7 +15,6 @@ Tubs, so it is not useful for tests that involve a Helper.
 
 from __future__ import annotations
 
-
 from typing import Callable
 
 import os

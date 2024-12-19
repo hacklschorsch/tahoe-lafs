@@ -3,7 +3,6 @@ Ported to Python 3.
 """
 from __future__ import annotations
 
-
 import sys, time, copy
 from zope.interface import implementer
 from itertools import count

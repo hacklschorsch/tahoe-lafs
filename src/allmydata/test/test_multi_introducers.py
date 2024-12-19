@@ -2,7 +2,6 @@
 Ported to Python 3.
 """
 
-
 import os
 
 from twisted.python.filepath import FilePath

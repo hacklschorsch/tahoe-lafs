@@ -2,7 +2,6 @@
 Ported to Python 3.
 """
 
-
 import os, re, itertools
 from base64 import b32decode
 import json

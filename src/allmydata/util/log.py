@@ -4,7 +4,6 @@ Logging utilities.
 Ported to Python 3.
 """
 
-
 from pyutil import nummedobj
 
 from foolscap.logging import log
